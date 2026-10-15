@@ -1,0 +1,221 @@
+@use '../../shared/styles/reader-chrome' as *;
+
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 50%);
+  backdrop-filter: blur(4px);
+  z-index: 13000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fade-in var(--transition-base);
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.dialog {
+  @include surface;
+
+  border: 1px solid var(--reader-chrome-border);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 480px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 50%);
+  animation: slide-up 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.dialog-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--reader-chrome-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--color-white) 2%, transparent) 0%, transparent 100%);
+
+  h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+  }
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: var(--reader-chrome-fg-muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  line-height: 1;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover {
+    background: var(--reader-chrome-hover);
+    color: var(--color-white);
+  }
+}
+
+.dialog-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.shortcut-group {
+  .group-title {
+    margin: 0 0 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--reader-chrome-fg-muted);
+  }
+}
+
+.shortcuts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shortcut-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--color-white) 3%, transparent);
+  border-radius: 8px;
+  transition: background var(--transition-fast);
+
+  &:hover {
+    background: color-mix(in srgb, var(--color-white) 5%, transparent);
+  }
+}
+
+.shortcut-keys {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 26px;
+  padding: 0 8px;
+  background: color-mix(in srgb, var(--color-white) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-white) 15%, transparent);
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-white);
+  box-shadow: 0 2px 0 rgb(0 0 0 / 20%);
+}
+
+.key-separator {
+  color: var(--reader-chrome-fg-muted);
+  font-size: 12px;
+  margin: 0 2px;
+}
+
+.shortcut-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  text-align: right;
+}
+
+.shortcut-description {
+  font-size: 13px;
+  color: var(--reader-chrome-fg-secondary);
+}
+
+.mobile-gesture {
+  font-size: 11px;
+  color: var(--reader-chrome-accent);
+  font-style: italic;
+}
+
+.dialog-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--reader-chrome-border);
+  display: flex;
+  justify-content: flex-end;
+  background: linear-gradient(0deg, color-mix(in srgb, var(--color-white) 2%, transparent) 0%, transparent 100%);
+}
+
+.btn {
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition-fast), transform var(--transition-fast);
+  border: none;
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
+.btn-primary {
+  background: var(--reader-chrome-accent);
+  color: white;
+
+  &:hover {
+    background: var(--reader-chrome-accent-hover);
+  }
+}
+
+@media (width <= 480px) {
+  .dialog {
+    width: 95%;
+    max-height: 90vh;
+  }
+
+  .shortcut-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .shortcut-info {
+    align-items: flex-start;
+    text-align: left;
+  }
+}

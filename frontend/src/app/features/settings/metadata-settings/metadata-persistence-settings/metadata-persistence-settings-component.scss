@@ -1,0 +1,110 @@
+@use '../../../../shared/styles/settings-shared' as settings;
+
+.settings-card {
+  @include settings.settings-card;
+}
+
+.section-header {
+  @include settings.settings-section-header;
+}
+
+.section-title {
+  @include settings.settings-section-title;
+}
+
+.section-description {
+  @include settings.settings-section-description;
+}
+
+.section-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6563rem;
+}
+
+.warning-notice {
+  @include settings.settings-warning-notice;
+}
+
+.warning-notice-danger {
+  border-left-color: var(--color-red-700);
+  color: var(--color-red-700);
+
+  .pi,
+  strong {
+    color: var(--color-red-700);
+  }
+}
+
+:host-context(.dark) {
+  .warning-notice-danger {
+    border-left-color: var(--color-red-300);
+    color: var(--color-red-300);
+
+    .pi,
+    strong {
+      color: var(--color-red-300);
+    }
+  }
+}
+
+.info-notice {
+  @include settings.settings-info-notice;
+}
+
+.section-body {
+  @include settings.settings-section-body;
+}
+
+.setting-item {
+  @include settings.settings-item;
+}
+
+.setting-header {
+  @include settings.settings-item-header;
+}
+
+.setting-label {
+  @include settings.settings-label;
+}
+
+.setting-description {
+  @include settings.settings-item-description;
+}
+
+.setting-note {
+  @include settings.settings-note;
+}
+
+.setting-options {
+  @include settings.settings-options;
+}
+
+.filesize-input {
+  @include settings.settings-filesize-input;
+}
+
+.network-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.sidecar-section-header {
+  margin-top: 1.3125rem;
+  padding-top: 1.3125rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.nested-setting {
+  margin-left: 1.3125rem;
+  padding-left: 0.875rem;
+  border-left: 2px solid var(--border-color);
+}
+
+code {
+  background: var(--ground-background);
+  padding: 0.1094rem 0.3281rem;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: var(--app-text-sm);
+}

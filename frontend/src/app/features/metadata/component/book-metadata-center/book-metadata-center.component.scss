@@ -1,0 +1,57 @@
+@use '../../../../shared/styles/panel-shared' as panel;
+
+.book-metadata-center-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.panel-header {
+  @include panel.panel-header;
+
+  flex-shrink: 0;
+}
+
+.tabs-wrapper {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tabs-wrapper > p-tabs {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.tabs-wrapper > p-tabs > p-tablist {
+  flex: 0 0 auto;
+}
+
+.dialog-mode {
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 0 0 0.6563rem 0.6563rem !important;
+  border-width: 1px 0 0 !important;
+}
+
+.tabpanels-responsive {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+:host-context(.book-details-dialog) {
+  display: flex;
+  width: 100%;
+}
+
+:host-context(.book-details-dialog) .book-metadata-center-container,
+:host-context(.book-details-dialog) p-tabs {
+  display: flex;
+  width: 100%;
+}
+
+:host-context(.book-details-dialog) p-tablist {
+  flex-shrink: 0;
+}

@@ -1,0 +1,126 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.editor-container {
+  padding: 0.875rem 0.4375rem;
+  display: flex;
+  gap: 1.75rem;
+  flex: 1;
+
+  @media (width <= 767px) {
+    flex-direction: column;
+    align-items: center;
+  }
+}
+
+.cover-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4375rem;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.photo-placeholder {
+  width: 200px;
+  height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-card), transparent 20%);
+  color: var(--color-text-secondary);
+
+  i {
+    font-size: 3.5rem;
+  }
+}
+
+.upload-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.cover-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6563rem;
+  padding-top: 0.6563rem;
+}
+
+.fields-section {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.field-group {
+  margin-bottom: 1.0938rem;
+
+  label {
+    display: block;
+    font-size: 0.7438rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    margin-bottom: 0.35rem;
+  }
+}
+
+.field-with-lock {
+  display: flex;
+
+  input,
+  textarea {
+    width: 100%;
+  }
+}
+
+::ng-deep .field-with-lock input {
+  border-radius: 6px 0 0 6px;
+}
+
+.field-with-lock textarea {
+  border-radius: 6px 0 6px 6px;
+}
+
+::ng-deep .field-with-lock button {
+  border-color: var(--p-inputtext-border-color) !important;
+  border-radius: 0 6px 6px 0 !important;
+  border-left: 0 !important;
+}
+
+.description-with-lock {
+  display: flex;
+  flex-grow: 1;
+  width: 100%;
+
+  textarea {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.form-footer {
+  margin-top: auto;
+}
+
+.footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  justify-content: flex-end;
+  padding: 0.4375rem 0;
+
+  @media (width <= 639px) {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}

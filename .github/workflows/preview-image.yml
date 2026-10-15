@@ -1,0 +1,78 @@
+name: Preview - Build Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref to preview build'
+        required: true
+        type: string
+      pr_number:
+        description: 'Optional PR number for a pr-<number>-<sha> tag'
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  build-and-push:
+    name: Build and Push Preview Image
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          ref: ${{ inputs.ref }}
+
+      - name: Generate Preview Tag
+        env:
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          short_sha=$(git rev-parse --short HEAD)
+
+          if [ -n "$PR_NUMBER" ]; then
+            case "$PR_NUMBER" in
+              (*[!0-9]*)
+                echo "Invalid PR number: $PR_NUMBER"
+                exit 1
+                ;;
+            esac
+            preview_tag="pr-${PR_NUMBER}-${short_sha}"
+          else
+            preview_tag="preview-${short_sha}"
+          fi
+
+          echo "preview_tag=$preview_tag" >> "$GITHUB_ENV"
+          echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "Preview tag: $preview_tag"
+
+      - name: Set Up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Authenticate to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Build and push Preview image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ghcr.io/grimmory-tools/grimmory:${{ env.preview_tag }}
+          build-args: |
+            APP_VERSION=${{ env.preview_tag }}
+            APP_REVISION=${{ env.commit_sha }}
+          cache-from: |
+            type=gha,scope=image-shared
+            type=registry,ref=ghcr.io/grimmory-tools/grimmory:buildcache

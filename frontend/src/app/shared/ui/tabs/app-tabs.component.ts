@@ -1,0 +1,245 @@
+import {
+  afterRenderEffect,
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  contentChildren,
+  DestroyRef,
+  Directive,
+  ElementRef,
+  inject,
+  input,
+  model,
+  signal,
+  TemplateRef,
+  untracked,
+  viewChild,
+  viewChildren,
+} from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+import { Tab as NgTab, TabContent, TabList, TabPanel, Tabs } from '@angular/aria/tabs';
+import { LucideDynamicIcon, type LucideIconData } from '@lucide/angular';
+import { AppSelectComponent } from '../select/app-select.component';
+import { type SelectOption } from '../select/app-select.options';
+import { cn } from '../cn';
+import { AppControlTransitionDirective } from '../control.styles';
+import {
+  appTabsListVariants,
+  appTabsRootVariants,
+  appTabVariants,
+  type TabsCollapse,
+  type TabsPlacement,
+  type TabsSize,
+  type TabsVariant,
+} from './app-tabs.variants';
+
+export interface TabItem {
+  id: string;
+  label: string;
+  icon?: LucideIconData;
+}
+
+const TAB_ICON_SIZE_CLASS: Record<TabsSize, string> = {
+  sm: 'size-3.5',
+  md: 'size-4',
+  lg: 'size-4',
+};
+
+const COLLAPSE_HYSTERESIS = 8;
+
+@Directive({
+  selector: 'ng-template[appTabPanel]',
+  standalone: true,
+})
+export class AppTabPanelDirective {
+  readonly value = input.required<string>({ alias: 'appTabPanel' });
+  readonly templateRef = inject<TemplateRef<unknown>>(TemplateRef);
+}
+
+@Component({
+  selector: 'app-tabs',
+  standalone: true,
+  imports: [
+    Tabs,
+    TabList,
+    NgTab,
+    TabPanel,
+    TabContent,
+    NgTemplateOutlet,
+    AppSelectComponent,
+    LucideDynamicIcon,
+    AppControlTransitionDirective,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: 'relative block min-w-0' },
+  template: `
+    @if (tabs().length) {
+      @if (collapsed()) {
+        <app-select
+          class="block w-full"
+          [options]="collapsedOptions()"
+          [value]="activeTabId() ?? null"
+          (valueChange)="selectTab($event)"
+          [ariaLabel]="ariaLabel()" />
+      }
+      <div ngTabs>
+        <div
+          data-tabs-row
+          [class]="rowClass()"
+          [attr.aria-hidden]="collapsed() ? 'true' : null"
+          [attr.inert]="collapsed() ? '' : null">
+          <div [class]="rootClass()">
+            <div
+              #tabList
+              ngTabList
+              [class]="listClass()"
+              [selectedTab]="activeTabId()"
+              (selectedTabChange)="selectTab($event)"
+              [attr.aria-label]="ariaLabel()">
+              <span
+                aria-hidden="true"
+                [class]="indicatorClass()"
+                [style.transform]="'translateX(' + indicatorLeft() + 'px)'"
+                [style.width.px]="indicatorWidth()"></span>
+              @for (tab of tabs(); track tab.id) {
+                <button appControlTransition ngTab type="button" [value]="tab.id" [class]="tabClass()">
+                  @if (tab.icon; as tabIcon) {
+                    <svg [lucideIcon]="tabIcon" [class]="tabIconClass()" aria-hidden="true"></svg>
+                  }
+                  <span class="leading-5">{{ tab.label }}</span>
+                </button>
+              }
+            </div>
+          </div>
+        </div>
+
+        @for (tab of tabs(); track tab.id) {
+          <div ngTabPanel [value]="tab.id" class="inert:hidden">
+            <ng-template ngTabContent>
+              @if (tabPanelTemplate(tab.id); as template) {
+                <ng-container [ngTemplateOutlet]="template" />
+              }
+            </ng-template>
+          </div>
+        }
+      </div>
+    }
+  `,
+})
+export class AppTabsComponent {
+  readonly tabs = input.required<readonly TabItem[]>();
+  readonly variant = input<TabsVariant>('underline');
+  readonly size = input<TabsSize>('md');
+  readonly placement = input<TabsPlacement>('inline');
+  readonly collapse = input<TabsCollapse>('auto');
+  readonly ariaLabel = input.required<string>();
+  readonly selectedTabId = model<string | undefined>(undefined);
+
+  protected readonly tabPanels = contentChildren(AppTabPanelDirective);
+
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly tabDirectives = viewChildren(NgTab);
+  private readonly tabListRef = viewChild<unknown, ElementRef<HTMLElement>>('tabList', { read: ElementRef });
+
+  protected readonly activeTabId = computed(() => this.resolveTabId(this.selectedTabId()));
+  protected readonly collapsedOptions = computed<SelectOption<string>[]>(() =>
+    this.tabs().map((tab) => ({ label: tab.label, value: tab.id })),
+  );
+  protected readonly collapsed = signal(false);
+  protected readonly indicatorLeft = signal(0);
+  protected readonly indicatorWidth = signal(0);
+  private readonly indicatorReady = signal(false);
+
+  protected readonly rowClass = computed(() =>
+    this.collapsed()
+      ? 'pointer-events-none invisible absolute left-0 top-0 w-max max-w-full overflow-hidden'
+      : this.collapse() === 'scroll'
+        ? 'block overflow-x-auto overflow-y-hidden [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+        : 'block',
+  );
+  protected readonly rootClass = computed(() => appTabsRootVariants({ placement: this.placement() }));
+  protected readonly listClass = computed(() => appTabsListVariants({ variant: this.variant(), placement: this.placement() }));
+  protected readonly tabClass = computed(() => appTabVariants({ variant: this.variant(), size: this.size() }));
+  protected readonly tabIconClass = computed(() => cn('shrink-0 leading-none', TAB_ICON_SIZE_CLASS[this.size()]));
+  protected readonly indicatorClass = computed(() => {
+    const animated = this.indicatorReady() && 'transition-[transform,width] duration-200 ease-out';
+    return this.variant() === 'segmented'
+      ? cn(
+          'pointer-events-none absolute inset-y-1 left-0 z-0 rounded-md border border-primary/15 ' +
+            'bg-primary/10 shadow-control dark:border-primary/30',
+          animated,
+        )
+      : cn('pointer-events-none absolute bottom-0 left-0 h-0.5 rounded-t-xs bg-primary', animated);
+  });
+
+  constructor() {
+    let resizeObserver: ResizeObserver | null = null;
+
+    afterRenderEffect(() => {
+      this.tabs();
+      this.variant();
+      this.size();
+      this.placement();
+      this.collapse();
+      this.activeTabId();
+      this.measureLayout();
+
+      if (typeof ResizeObserver === 'undefined') return;
+      resizeObserver ??= new ResizeObserver(() => this.measureLayout());
+      resizeObserver.disconnect();
+      resizeObserver.observe(this.host.nativeElement);
+      for (const tab of this.tabDirectives()) {
+        resizeObserver.observe(tab.element);
+      }
+    });
+
+    this.destroyRef.onDestroy(() => resizeObserver?.disconnect());
+  }
+
+  protected selectTab(value: string | null | undefined): void {
+    this.selectedTabId.set(this.resolveTabId(value ?? undefined));
+  }
+
+  protected tabPanelTemplate(value: string): TemplateRef<unknown> | undefined {
+    return this.tabPanels().find((panel) => panel.value() === value)?.templateRef;
+  }
+
+  private measureLayout(): void {
+    this.measure();
+    this.measureFit();
+  }
+
+  private measureFit(): void {
+    const mode = this.collapse();
+    if (mode !== 'auto') {
+      this.collapsed.set(mode === 'always');
+      return;
+    }
+    const list = this.tabListRef()?.nativeElement;
+    if (!list) return;
+    const available = this.host.nativeElement.clientWidth;
+    const content = list.scrollWidth;
+    const collapsed = untracked(this.collapsed);
+    if (!collapsed) {
+      if (content > available + 1) this.collapsed.set(true);
+    } else if (content <= available - COLLAPSE_HYSTERESIS) {
+      this.collapsed.set(false);
+    }
+  }
+
+  private measure(): void {
+    const active = this.tabDirectives().find((tab) => tab.value() === this.activeTabId());
+    if (!active) return;
+    this.indicatorLeft.set(active.element.offsetLeft);
+    this.indicatorWidth.set(active.element.offsetWidth);
+    if (!this.indicatorReady() && typeof requestAnimationFrame !== 'undefined') {
+      requestAnimationFrame(() => this.indicatorReady.set(true));
+    }
+  }
+
+  private resolveTabId(value: string | undefined): string | undefined {
+    const tabs = this.tabs();
+    return tabs.some((tab) => tab.id === value) ? value : tabs[0]?.id;
+  }
+}

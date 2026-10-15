@@ -1,0 +1,190 @@
+@use '../../../shared/styles/reader-chrome' as *;
+
+.cbx-header {
+  @include surface;
+
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 38px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  z-index: 1000;
+  border-bottom: 1px solid var(--reader-chrome-border);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+  transition: opacity 0.25s ease-out, transform 0.25s ease-out;
+
+  &:not(.is-visible) {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-100%);
+  }
+
+  .header-left,
+  .header-right {
+    display: flex;
+    align-items: center;
+    z-index: 1;
+  }
+
+  .icon-btn {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 6px;
+    transition: background 0.15s, box-shadow 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 8px;
+
+    .icon {
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    &:hover {
+      background: var(--reader-chrome-hover);
+    }
+
+    &:last-child {
+      margin-right: 0;
+    }
+
+    &.close-btn {
+      .icon {
+        font-size: 22px;
+        font-weight: bold;
+      }
+
+      &:hover {
+        background: color-mix(in srgb, var(--color-red-500) 20%, transparent);
+      }
+    }
+
+    &.active {
+      color: var(--color-red-500);
+      background: color-mix(in srgb, var(--color-red-500) 15%, transparent);
+    }
+
+    &.has-notes {
+      color: var(--color-amber-400);
+      position: relative;
+    }
+
+    .indicator-dot {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 8px;
+      height: 8px;
+      background: var(--color-amber-400);
+      border-radius: 50%;
+      border: 1px solid var(--reader-chrome-bg);
+    }
+  }
+
+  .book-title {
+    flex: 1;
+    min-width: 0;
+    padding: 0 12px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 500;
+    color: inherit;
+    pointer-events: none;
+    user-select: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mobile-only {
+    display: none;
+  }
+
+  .overflow-menu {
+    position: relative;
+  }
+
+  .overflow-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+  }
+
+  .overflow-dropdown {
+    @include surface;
+
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    border: 1px solid var(--reader-chrome-border);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgb(0 0 0 / 40%);
+    z-index: 1000;
+    min-width: 180px;
+    padding: 4px;
+  }
+
+  .overflow-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 12px;
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    border-radius: 6px;
+    white-space: nowrap;
+
+    &:hover {
+      background: var(--reader-chrome-hover);
+    }
+
+    &.active {
+      color: var(--color-red-500);
+      background: color-mix(in srgb, var(--color-red-500) 15%, transparent);
+    }
+  }
+}
+
+@media (width <= 600px) {
+  .cbx-header {
+    padding: 0 4px;
+
+    .icon-btn {
+      padding: 5px;
+      margin-right: 6px;
+
+      app-reader-icon {
+        transform: scale(0.9);
+      }
+    }
+
+    .book-title {
+      font-size: 12px;
+    }
+
+    .desktop-only {
+      display: none;
+    }
+
+    .mobile-only {
+      display: block;
+    }
+  }
+}

@@ -1,0 +1,176 @@
+@use '../../styles/auth-shared' as auth;
+
+.login-container {
+  @include auth.auth-container;
+}
+
+.login-card-wrapper {
+  @include auth.auth-card-wrapper(460px, -8rem);
+}
+
+.login-card-border {
+  @include auth.auth-card-border;
+}
+
+.login-card {
+  @include auth.auth-card;
+}
+
+.login-header {
+  @include auth.auth-header;
+}
+
+.logo-wrapper {
+  @include auth.auth-logo;
+}
+
+.logo-icon {
+  @include auth.auth-logo-icon;
+}
+
+.login-title {
+  @include auth.auth-title;
+}
+
+.login-subtitle {
+  @include auth.auth-subtitle;
+
+  font-size: var(--app-text-base);
+}
+
+.oidc-warning {
+  margin-bottom: 1.3125rem;
+  padding: 0.875rem;
+  border-radius: 0.6563rem;
+  background: rgb(245 158 11 / 10%);
+  border: 1px solid rgb(245 158 11 / 30%);
+  animation: fadeIn 0.3s ease-out;
+}
+
+.warning-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6563rem;
+}
+
+.warning-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  color: #fbbf24;
+  font-size: var(--app-text-sm);
+  font-weight: 600;
+
+  i {
+    font-size: var(--app-text-base);
+  }
+}
+
+.warning-message {
+  font-size: var(--app-text-sm);
+  color: #fcd34d;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.warning-actions {
+  display: flex;
+  gap: 0.6563rem;
+  justify-content: center;
+}
+
+.login-form {
+  @include auth.auth-form(1.5rem);
+}
+
+.form-field {
+  @include auth.form-field;
+}
+
+.form-label {
+  @include auth.form-label;
+}
+
+.login-button {
+  @include auth.auth-button;
+
+  margin-top: 0.4375rem;
+}
+
+.error-message {
+  @include auth.error-message;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 1.3125rem 0;
+
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+  }
+
+  span {
+    padding: 0 0.875rem;
+    font-size: var(--app-text-sm);
+    color: var(--color-text-secondary);
+    font-weight: 500;
+  }
+}
+
+.oidc-button {
+  ::ng-deep button {
+    height: 2.4063rem;
+    background: color-mix(in srgb, var(--color-text) 5%, var(--color-card));
+    border: 1px solid color-mix(in srgb, var(--color-border) 85%, var(--color-text) 15%);
+    color: var(--color-text);
+    transition: all 0.3s ease;
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--color-text) 8%, var(--color-card));
+      border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
+      transform: translateY(-1px);
+    }
+
+    &:focus-visible {
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 25%, transparent);
+    }
+
+    &:disabled {
+      color: var(--color-text-secondary);
+      opacity: 0.7;
+    }
+  }
+}
+
+.help-text {
+  text-align: center;
+  margin-top: 0.4375rem;
+}
+
+.text-link {
+  background: none;
+  border: none;
+  font-size: 0.7rem;
+  color: rgb(255 255 255 / 50%);
+  text-decoration: underline;
+  cursor: pointer;
+  transition: color 0.2s ease;
+  padding: 0;
+
+  &:hover {
+    color: rgb(255 255 255 / 80%);
+  }
+
+  &.primary {
+    color: var(--primary-color);
+
+    &:hover {
+      color: #60a5fa;
+    }
+  }
+}

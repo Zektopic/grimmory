@@ -1,0 +1,33 @@
+[Unit]
+Description=Grimmory container
+Requires=grimmory-db.container
+After=grimmory-db.container
+
+[Container]
+ContainerName=grimmory
+# The suggested deployment approach is to use a specific version rather than `latest`
+# so upgrading is more straightforward and convenient.  In those cases, you can
+# use the tagged version, such as `v3.2.4` rather than `latest`.
+Image=ghcr.io/grimmory-tools/grimmory:latest
+Pod=grimmory.pod
+AutoUpdate=registry
+Pull=always
+
+Volume=grimmory-data:/app/data
+# note the :z is important for selinux systems
+# Volume=YOUR MOUNTS:/books:z
+# Volume=YOUR MOUNTS:/bookdrop:z
+
+
+Environment=TZ=Etc/UTC
+Secret=grimmory_db_pass,type=env,target=DATABASE_PASSWORD
+Environment=DATABASE_URL=jdbc:mariadb://localhost:3306/grimmory
+Environment=DATABASE_USERNAME=grimmory
+HealthCmd=CMD-SHELL wget -q --spider http://localhost:${SERVER_PORT:-6060}/api/v1/healthcheck
+HealthInterval=1m
+HealthRetries=5
+HealthStartPeriod=1m
+HealthTimeout=10s
+
+[Install]
+WantedBy=default.target

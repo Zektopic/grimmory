@@ -1,0 +1,231 @@
+import {Component, DestroyRef, effect, inject} from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+import {FormsModule, ReactiveFormsModule} from '@angular/forms';
+import {TableModule} from '@openng/optimus-ui/table';
+import {InputText} from '@openng/optimus-ui/inputtext';
+import {Button} from '@openng/optimus-ui/button';
+import {AppSettingsService} from '../../../../shared/service/app-settings.service';
+import {MessageService} from '@openng/optimus-ui/api';
+import {AppSettingKey} from '../../../../shared/model/app-settings.model';
+import {Select} from '@openng/optimus-ui/select';
+import {ExternalDocLinkComponent} from '../../../../shared/components/external-doc-link/external-doc-link.component';
+import { ToggleSwitch } from '@openng/optimus-ui/toggleswitch';
+import {TranslocoDirective, TranslocoService} from '@jsverse/transloco';
+
+@Component({
+  selector: 'app-metadata-provider-settings',
+  imports: [
+    ReactiveFormsModule,
+    TableModule,
+    InputText,
+    Button,
+    FormsModule,
+    Select,
+    ExternalDocLinkComponent,
+    ToggleSwitch,
+    TranslocoDirective
+  ],
+  templateUrl: './metadata-provider-settings.component.html',
+  styleUrl: './metadata-provider-settings.component.scss'
+})
+export class MetadataProviderSettingsComponent {
+
+  amazonDomains = [
+    {label: 'amazon.com', value: 'com'},
+    {label: 'amazon.de', value: 'de'},
+    {label: 'amazon.co.uk', value: 'co.uk'},
+    {label: 'amazon.co.jp', value: 'co.jp'},
+    {label: 'amazon.ca', value: 'ca'},
+    {label: 'amazon.in', value: 'in'},
+    {label: 'amazon.com.au', value: 'com.au'},
+    {label: 'amazon.fr', value: 'fr'},
+    {label: 'amazon.it', value: 'it'},
+    {label: 'amazon.es', value: 'es'},
+    {label: 'amazon.nl', value: 'nl'},
+    {label: 'amazon.se', value: 'se'},
+    {label: 'amazon.com.br', value: 'com.br'},
+    {label: 'amazon.sg', value: 'sg'},
+    {label: 'amazon.com.mx', value: 'com.mx'},
+    {label: 'amazon.pl', value: 'pl'},
+    {label: 'amazon.ae', value: 'ae'},
+    {label: 'amazon.sa', value: 'sa'},
+    {label: 'amazon.tr', value: 'tr'}
+  ];
+
+  selectedAmazonDomain = 'com';
+
+  googleLanguages = [
+    {label: 'Dutch', value: 'nl'},
+    {label: 'English', value: 'en'},
+    {label: 'French', value: 'fr'},
+    {label: 'German', value: 'de'},
+    {label: 'Italian', value: 'it'},
+    {label: 'Japanese', value: 'ja'},
+    {label: 'Polish', value: 'pl'},
+    {label: 'Portuguese', value: 'pt'},
+    {label: 'Spanish', value: 'es'},
+    {label: 'Swedish', value: 'sv'}
+  ];
+
+  selectedGoogleLanguage = '';
+
+  audibleDomains = [
+    {label: 'audible.com', value: 'com'},
+    {label: 'audible.co.uk', value: 'co.uk'},
+    {label: 'audible.de', value: 'de'},
+    {label: 'audible.fr', value: 'fr'},
+    {label: 'audible.it', value: 'it'},
+    {label: 'audible.es', value: 'es'},
+    {label: 'audible.ca', value: 'ca'},
+    {label: 'audible.com.au', value: 'com.au'},
+    {label: 'audible.co.jp', value: 'co.jp'},
+    {label: 'audible.in', value: 'in'}
+  ];
+
+  appleBooksCountries = [
+    {label: 'US', value: 'US'},
+    {label: 'CA', value: 'CA'},
+    {label: 'GB', value: 'GB'},
+    {label: 'DE', value: 'DE'},
+    {label: 'FR', value: 'FR'},
+    {label: 'PL', value: 'PL'},
+    {label: 'JP', value: 'JP'},
+    {label: 'AU', value: 'AU'},
+    {label: 'IT', value: 'IT'},
+    {label: 'ES', value: 'ES'},
+  ]
+
+  selectedAppleBooksCountry = 'US';
+  selectedAudibleDomain = 'com';
+  audibleEnabled: boolean = false;
+
+  hardcoverToken: string = '';
+  amazonCookie: string = '';
+  hardcoverEnabled: boolean = false;
+  amazonEnabled: boolean = false;
+  openLibraryEnabled: boolean = false;
+  goodreadsEnabled: boolean = false;
+  googleEnabled: boolean = false;
+  comicvineEnabled: boolean = false;
+  comicvineToken: string = '';
+  doubanEnabled: boolean = false;
+  lubimyCzytacEnabled: boolean = false;
+  ranobedbEnabled: boolean = false;
+  ranobedbPreferRomaji: boolean = false;
+  googleApiKey: string = '';
+  appleBooksEnabled: boolean = false;
+
+  private appSettingsService = inject(AppSettingsService);
+  private messageService = inject(MessageService);
+  private t = inject(TranslocoService);
+  private destroyRef = inject(DestroyRef);
+
+  private readonly syncSettingsEffect = effect(() => {
+    const settings = this.appSettingsService.appSettings();
+    if (settings) {
+      this.applySettings(settings);
+    }
+  });
+
+  private applySettings(settings: NonNullable<ReturnType<typeof this.appSettingsService.appSettings>>): void {
+    const metadataProviderSettings = settings.metadataProviderSettings;
+    this.openLibraryEnabled = metadataProviderSettings?.openLibrary?.enabled ?? false;
+    this.amazonEnabled = metadataProviderSettings?.amazon?.enabled ?? false;
+    this.amazonCookie = metadataProviderSettings?.amazon?.cookie ?? "";
+    this.selectedAmazonDomain = metadataProviderSettings?.amazon?.domain ?? 'com';
+    this.goodreadsEnabled = metadataProviderSettings?.goodReads?.enabled ?? false;
+    this.selectedGoogleLanguage = metadataProviderSettings?.google?.language ?? '';
+    this.googleApiKey = metadataProviderSettings?.google?.apiKey ?? '';
+    this.googleEnabled = (metadataProviderSettings?.google?.enabled ?? false) && this.googleApiKeyConfigured;
+    this.hardcoverToken = metadataProviderSettings?.hardcover?.apiKey ?? '';
+    this.hardcoverEnabled = metadataProviderSettings?.hardcover?.enabled ?? false;
+    this.comicvineEnabled = metadataProviderSettings?.comicvine?.enabled ?? false;
+    this.comicvineToken = metadataProviderSettings?.comicvine?.apiKey ?? '';
+    this.doubanEnabled = metadataProviderSettings?.douban?.enabled ?? false;
+    this.lubimyCzytacEnabled = metadataProviderSettings?.lubimyczytac?.enabled ?? false;
+    this.ranobedbEnabled = metadataProviderSettings?.ranobedb?.enabled ?? false;
+    this.ranobedbPreferRomaji = metadataProviderSettings?.ranobedb?.preferRomaji ?? false;
+    this.audibleEnabled = metadataProviderSettings?.audible?.enabled ?? false;
+    this.selectedAudibleDomain = metadataProviderSettings?.audible?.domain ?? 'com';
+    this.appleBooksEnabled = metadataProviderSettings?.appleBooks?.enabled ?? false;
+    this.selectedAppleBooksCountry = metadataProviderSettings?.appleBooks?.country ?? 'US';
+  }
+
+  onTokenChange(newToken: string): void {
+    this.hardcoverToken = newToken;
+    if (!newToken.trim()) {
+      this.hardcoverEnabled = false;
+    }
+  }
+
+  onComicTokenChange(newToken: string): void {
+    this.comicvineToken = newToken;
+  }
+
+  get googleApiKeyConfigured(): boolean {
+    return this.googleApiKey.trim().length > 0;
+  }
+
+  saveSettings(): void {
+    const payload = [
+      {
+        key: AppSettingKey.METADATA_PROVIDER_SETTINGS,
+        newValue: {
+          openLibrary: {
+            enabled: this.openLibraryEnabled,
+          },
+          amazon: {
+            enabled: this.amazonEnabled,
+            cookie: this.amazonCookie,
+            domain: this.selectedAmazonDomain
+          },
+          comicvine: {
+            enabled: this.comicvineEnabled,
+            apiKey: this.comicvineToken.trim()
+          },
+          goodReads: {enabled: this.goodreadsEnabled},
+          google: {
+            enabled: this.googleEnabled && this.googleApiKeyConfigured,
+            language: this.selectedGoogleLanguage,
+            apiKey: this.googleApiKey.trim()
+          },
+          hardcover: {
+            enabled: this.hardcoverEnabled,
+            apiKey: this.hardcoverToken.trim()
+          },
+          douban: {enabled: this.doubanEnabled},
+          lubimyczytac: {enabled: this.lubimyCzytacEnabled},
+          ranobedb: {
+            enabled: this.ranobedbEnabled,
+            preferRomaji: this.ranobedbPreferRomaji
+          },
+          audible: {
+            enabled: this.audibleEnabled,
+            domain: this.selectedAudibleDomain
+          },
+          appleBooks: {
+            enabled: this.appleBooksEnabled,
+            country: this.selectedAppleBooksCountry,
+          },
+        }
+      }
+    ];
+
+    this.appSettingsService.saveSettings(payload).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: () =>
+        this.messageService.add({
+          severity: 'success',
+          summary: this.t.translate('common.success'),
+          detail: this.t.translate('settingsMeta.providers.saveSuccess')
+        }),
+      error: () =>
+        this.messageService.add({
+          severity: 'error',
+          summary: this.t.translate('common.error'),
+          detail: this.t.translate('settingsMeta.providers.saveError')
+        })
+    });
+  }
+}

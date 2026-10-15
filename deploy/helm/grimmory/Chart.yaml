@@ -1,0 +1,14 @@
+apiVersion: v2
+name: grimmory
+description: A Helm chart for [Grimmory](https://github.com/grimmory-tools/grimmory)
+type: application
+version: 0.1.0
+
+# The app version is set to v0.0.0 in the Github repository and is bumped
+# dynamically by the CI on release
+appVersion: "v0.0.0"
+dependencies:
+  - name: mariadb
+    version: 0.16.0
+    repository: oci://registry-1.docker.io/cloudpirates
+    condition: mariadb.enabled

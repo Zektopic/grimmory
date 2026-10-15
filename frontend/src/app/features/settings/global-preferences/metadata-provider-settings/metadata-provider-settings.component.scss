@@ -1,0 +1,161 @@
+@use '../../../../shared/styles/settings-shared' as settings;
+
+.metadata-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 1.3125rem;
+}
+
+.settings-card {
+  @include settings.settings-card;
+}
+
+.section-header {
+  @include settings.settings-section-header;
+}
+
+.section-title {
+  @include settings.settings-section-title;
+}
+
+.section-description {
+  @include settings.settings-section-description;
+}
+
+.section-body {
+  @include settings.settings-section-body;
+
+  gap: 1.75rem;
+}
+
+.configurable-providers-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4375rem;
+}
+
+.configurable-providers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6563rem;
+}
+
+.simple-providers-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4375rem;
+}
+
+.provider-group-title {
+  font-size: settings.$settings-section-description-size;
+  font-weight: settings.$settings-section-title-weight;
+  color: var(--p-text-muted-color);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  margin: 0 0 0.2188rem;
+}
+
+.setting-item {
+  @include settings.settings-item;
+}
+
+.setting-header {
+  @include settings.settings-item-header;
+}
+
+.setting-label {
+  @include settings.settings-label;
+}
+
+.setting-options {
+  @include settings.settings-options;
+
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.config-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3281rem;
+}
+
+.config-label {
+  font-weight: settings.$settings-label-weight;
+  color: var(--text-color);
+  font-size: settings.$settings-description-size;
+}
+
+.config-label-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+}
+
+.config-description {
+  color: var(--p-text-muted-color);
+  font-size: settings.$settings-description-size;
+  line-height: 1.4;
+  margin: 0;
+}
+
+::ng-deep .config-select {
+  width: 100%;
+  max-width: 17.5rem;
+}
+
+.config-input {
+  width: 100%;
+  max-width: 35rem;
+  padding: 0.3281rem 0.5469rem;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 4px;
+  background: var(--ground-background);
+  color: var(--text-color);
+  font-size: settings.$settings-section-description-size;
+  transition: border-color 0.2s ease;
+
+  &:hover {
+    border-color: var(--primary-color);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--primary-color);
+  }
+
+  &::placeholder {
+    color: var(--p-text-muted-color);
+  }
+}
+
+.simple-providers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.6563rem;
+
+  @media (width <= 768px) {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4375rem;
+  }
+
+  @media (width <= 480px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.simple-provider {
+  padding: 0.5469rem 0.7656rem;
+
+  @media (width <= 768px) {
+    padding: 0.4375rem 0.6563rem;
+  }
+}
+
+.setting-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 0.4375rem;
+  border-top: 1px solid var(--p-content-border-color);
+}

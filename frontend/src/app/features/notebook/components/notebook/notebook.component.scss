@@ -1,0 +1,397 @@
+@use '../../../../shared/styles/settings-shared' as settings;
+@use '../../../../../assets/layout/styles/layout/variables';
+
+// Page container — override mixin's overflow so only the content area scrolls
+.main-container {
+  @include settings.settings-page-container;
+
+  gap: 0;
+  overflow-y: hidden;
+  padding: 0;
+}
+
+.main-container > .settings-header,
+.main-container > .settings-card {
+  margin-inline: 0.9625rem;
+}
+
+.main-container > .settings-header {
+  margin-top: 0.9625rem;
+}
+
+.main-container > .settings-card {
+  margin-top: 1.3125rem;
+}
+
+@media #{variables.$mobile-shell-media-query} {
+  .main-container > .settings-header,
+  .main-container > .settings-card {
+    margin-inline: var(--space-4);
+  }
+
+  .main-container > .settings-header {
+    margin-top: var(--space-4);
+  }
+}
+
+// Scrollable content area below the fixed header + filters
+.entries-scroll-area {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.3125rem;
+  padding: 1.3125rem 0.9625rem 0;
+
+  @media #{variables.$mobile-shell-media-query} {
+    padding: 1.3125rem var(--space-4) 0;
+  }
+}
+
+@include settings.settings-page-header;
+
+.settings-header {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.settings-title {
+  @include settings.settings-page-title;
+
+  margin-bottom: 0.6563rem;
+}
+
+.settings-description {
+  @include settings.settings-page-description;
+}
+
+// Cards
+.settings-card {
+  @include settings.settings-card;
+
+  padding: 0.875rem;
+}
+
+// ============================================================================
+// FILTERS BAR
+// ============================================================================
+.filters-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.875rem;
+  flex-wrap: wrap;
+}
+
+.filters-left {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.filters-right {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  flex-wrap: wrap;
+}
+
+.search-wrapper {
+  position: relative;
+
+  i {
+    position: absolute;
+    left: 0.6563rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--p-text-muted-color);
+    font-size: var(--app-text-sm);
+  }
+
+  .search-input {
+    padding-left: 1.9688rem;
+    width: 200px;
+    font-size: var(--app-text-sm);
+  }
+}
+
+::ng-deep .book-select {
+  min-width: 200px;
+}
+
+// Type filter toggle buttons (settings-button-group pattern)
+.type-filters {
+  @include settings.settings-button-group;
+}
+
+// ============================================================================
+// STATES: Loading / Empty
+// ============================================================================
+.state-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2.625rem 1.75rem;
+  text-align: center;
+  color: var(--p-text-muted-color);
+
+  .pi-spinner {
+    font-size: 1.75rem;
+    color: var(--p-primary-color);
+  }
+}
+
+.state-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  background: color-mix(in srgb, var(--p-primary-color) 12%, transparent);
+  color: var(--p-primary-color);
+  border-radius: 50%;
+  margin-bottom: 0.875rem;
+
+  .pi {
+    font-size: 1.3125rem;
+  }
+
+  &.warn {
+    background: color-mix(in srgb, var(--p-orange-500) 12%, transparent);
+    color: var(--p-orange-500);
+  }
+}
+
+.state-title {
+  font-size: var(--app-text-base);
+  font-weight: 600;
+  color: var(--p-text-color);
+  margin: 0 0 0.2188rem;
+}
+
+.state-hint {
+  font-size: var(--app-text-sm);
+  color: var(--p-text-muted-color);
+  margin: 0;
+}
+
+// ============================================================================
+// BOOK GROUP CARDS
+// ============================================================================
+.book-group-card {
+  gap: 0;
+  padding: 0;
+}
+
+.book-group-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6563rem;
+  padding: 0.875rem 1.0938rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  border-radius: 8px;
+
+  &:hover {
+    background: color-mix(in srgb, var(--p-text-color) 4%, transparent);
+  }
+}
+
+.book-thumbnail {
+  width: 36px;
+  height: 50px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  border: 1px solid var(--p-content-border-color);
+}
+
+.book-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1094rem;
+}
+
+.book-title {
+  font-weight: 600;
+  font-size: var(--app-text-base);
+  color: var(--p-text-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-entry-count {
+  font-size: 0.7109rem;
+  color: var(--p-text-muted-color);
+}
+
+.toggle-icon {
+  color: var(--p-text-muted-color);
+  font-size: var(--app-text-sm);
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+// ============================================================================
+// ENTRIES LIST
+// ============================================================================
+.entries-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4375rem;
+  padding: 0 1.0938rem 1.0938rem;
+}
+
+.entry-item {
+  padding: 0.6563rem 0.875rem;
+  border-radius: 6px;
+  border-left: 3px solid var(--p-primary-color);
+  background: var(--color-card);
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: color-mix(in srgb, var(--color-card) 92%, var(--color-text) 8%);
+  }
+}
+
+.entry-top-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5469rem;
+  margin-bottom: 0.4375rem;
+  flex-wrap: wrap;
+}
+
+.entry-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2625rem;
+  padding: 0.1094rem 0.4375rem;
+  border-radius: 12px;
+  font-size: var(--app-text-xs);
+  font-weight: 600;
+
+  .pi {
+    font-size: 0.6016rem;
+  }
+
+  &.type-highlight {
+    background: color-mix(in srgb, var(--p-yellow-500) 15%, transparent);
+    color: var(--p-yellow-500);
+  }
+
+  &.type-note {
+    background: color-mix(in srgb, var(--p-blue-500) 15%, transparent);
+    color: var(--p-blue-400);
+  }
+
+  &.type-bookmark {
+    background: color-mix(in srgb, var(--p-green-500) 15%, transparent);
+    color: var(--p-green-400);
+  }
+}
+
+.entry-chapter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2625rem;
+  font-size: 0.7109rem;
+  color: var(--p-text-muted-color);
+
+  .pi {
+    font-size: var(--app-text-xs);
+  }
+}
+
+.entry-date {
+  margin-left: auto;
+  font-size: var(--app-text-xs);
+  color: var(--p-text-muted-color);
+  white-space: nowrap;
+}
+
+.entry-text {
+  color: var(--p-text-color);
+  font-size: var(--app-text-sm);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.entry-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.3281rem;
+  margin-top: 0.4375rem;
+  padding-top: 0.4375rem;
+  border-top: 1px dashed var(--p-content-border-color);
+  color: var(--p-text-muted-color);
+  font-size: 0.7109rem;
+  font-style: italic;
+  line-height: 1.5;
+
+  .pi {
+    font-size: var(--app-text-xs);
+    margin-top: 0.1094rem;
+    flex-shrink: 0;
+    color: var(--p-primary-color);
+  }
+}
+
+// ============================================================================
+// PAGINATION
+// ============================================================================
+.pagination-card {
+  display: flex;
+  justify-content: center;
+  padding: 0.4375rem;
+}
+
+// ============================================================================
+// RESPONSIVE
+// ============================================================================
+@media #{variables.$mobile-shell-media-query} {
+  .filters-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filters-left,
+  .filters-right {
+    width: 100%;
+  }
+
+  .search-wrapper .search-input {
+    width: 100%;
+  }
+
+  ::ng-deep .book-select {
+    width: 100%;
+  }
+
+  .type-filters {
+    width: 100%;
+    justify-content: stretch;
+
+    .option-button {
+      flex: 1;
+    }
+  }
+
+  .entry-top-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.3281rem;
+  }
+
+  .entry-date {
+    margin-left: 0;
+  }
+}

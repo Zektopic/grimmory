@@ -1,22 +1,23 @@
-> [!NOTE]
-> This project is in early development. Some links (website, documentation, demo, repositories) are not yet active and will come online as infrastructure is set up.
+<div align="center">
 
-> [!NOTE]
-> Grimmory is the successor of booklore.
+<picture>
+  <source srcset="assets/logo-with-text.svg">
+  <img src="assets/logo-with-text.svg" alt="Grimmory" height="80" />
+</picture>
 
+**Grimmory is a self-hosted digital library for people who take their reading seriously.**
 
-Grimmory is a self-hosted application for managing your entire book collection in one place.
-Organize, read, annotate, sync across devices, and share without relying on third-party services.
+[![Release](https://img.shields.io/github/v/release/grimmory-tools/grimmory?color=818CF8&logo=github)](https://github.com/grimmory-tools/grimmory/releases)
+[![License](https://img.shields.io/github/license/grimmory-tools/grimmory?color=fab005)](LICENSE)
+[![Crowdin](https://badges.crowdin.net/grimmory/localized.svg)](https://crowdin.com/project/grimmory)
+[![Docker Pulls](https://img.shields.io/docker/pulls/grimmory/grimmory?color=2496ED&logo=docker&logoColor=white)](https://hub.docker.com/r/grimmory/grimmory)
+[![Discord](https://img.shields.io/badge/Discord-5865F2?logo=discord&logoColor=white)](https://discord.gg/9YJ7HB4n8T)
 
-[![Release](https://img.shields.io/github/v/release/grimmory-tools/grimmory?color=818CF8&style=flat-square&logo=github)](https://github.com/grimmory-tools/grimmory/releases)
-[![License](https://img.shields.io/github/license/grimmory-tools/grimmory?color=fab005&style=flat-square)](LICENSE)
-[![Docker Pulls](https://img.shields.io/docker/pulls/grimmory/grimmory?color=2496ED&style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/grimmory/grimmory)
-[![Discord](https://img.shields.io/badge/Discord-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/FwqHeFWk)
+[Documentation](https://grimmory.org/docs) · [Quick Start](#quick-start) · [Translations](https://crowdin.com/project/grimmory) · [Discord](https://discord.gg/9YJ7HB4n8T) · [Releases](https://github.com/grimmory-tools/grimmory/releases)
 
+<!-- ![Grimmory Demo](assets/demo.gif) -->
 
-[Website](https://grimmory.org/) | [Documentation](https://grimmory.org/docs/getting-started) | [Quick Start](#quick-start) | [Discord](https://discord.gg/FwqHeFWk)
-
-![Grimmory Demo](assets/demo.gif)
+</div>
 
 ---
 
@@ -36,9 +37,10 @@ Organize, read, annotate, sync across devices, and share without relying on thir
 
 | Category | Formats |
 | :--- | :--- |
-| eBooks | EPUB, MOBI, AZW, AZW3 |
+| eBooks | EPUB, MOBI, AZW, AZW3, FB2 |
 | Documents | PDF |
 | Comics | CBZ, CBR, CB7 |
+| Audiobooks | M4B, M4A, MP3, OPUS |
 
 ---
 
@@ -74,6 +76,9 @@ DATABASE_URL=jdbc:mariadb://mariadb:3306/grimmory
 DB_USER=grimmory
 DB_PASSWORD=ChangeMe_Grimmory_2025!
 
+# Optional: enable API docs + export OpenAPI JSON (defaults to false)
+API_DOCS_ENABLED=false
+
 # Storage: LOCAL (default) or NETWORK (disables file operations; see Network Storage section)
 DISK_TYPE=LOCAL
 
@@ -86,13 +91,17 @@ MYSQL_DATABASE=grimmory
 
 ### Step 2: Docker Compose
 
-Create a `docker-compose.yml`:
+Stable images are published from semantic-release tags on `main` as `vX.Y.Z` plus `latest`. Nightly images are built from `develop` and tagged `nightly`.
+
+Create a `docker-compose.yml` or copy and adapt [`deploy/compose/docker-compose.yml`](deploy/compose/docker-compose.yml):
 
 ```yaml
 services:
   grimmory:
     image: grimmory/grimmory:latest
-    # Alternative: ghcr.io/grimmory-tools/grimmory:latest
+    # Convenience tag:
+    # image: grimmory/grimmory:<release-version>
+    # Alternative: ghcr.io/grimmory-tools/grimmory:<release-version>
     # To build from source instead: comment out 'image' and uncomment below
     # build: .
     container_name: grimmory
@@ -103,6 +112,8 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - DATABASE_USERNAME=${DB_USER}
       - DATABASE_PASSWORD=${DB_PASSWORD}
+      - API_DOCS_ENABLED=${API_DOCS_ENABLED}
+      - DISK_TYPE=${DISK_TYPE}
     depends_on:
       mariadb:
         condition: service_healthy
@@ -122,7 +133,6 @@ services:
 
   mariadb:
     image: lscr.io/linuxserver/mariadb:11.4.5
-    container_name: mariadb
     environment:
       - PUID=${DB_USER_ID}
       - PGID=${DB_GROUP_ID}
@@ -147,7 +157,56 @@ services:
 docker compose up -d
 ```
 
-Open http://localhost:6060, create your admin account, and start building your library.
+Open http://localhost:6060, create your admin account, and start building your library. (All libraries must be created within directories mounted on the host, e.g. the `/books/` directory in the sample `docker-compose.yml` above.)
+
+#### Optional: Capture Heap Dumps for OOM Debugging
+
+Heap dumps are disabled by default. To enable them temporarily, add the following environment variable to the `grimmory` service:
+
+```yaml
+services:
+  grimmory:
+    environment:
+      - JDK_JAVA_OPTIONS=-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/app/data
+```
+
+The JVM creates a PID-specific `.hprof` file in the mounted `/app/data` directory. Remove the option after collecting the diagnostic data because heap dumps can be large and contain sensitive application data.
+
+Additional deployment examples:
+
+- Docker Compose: [`deploy/compose/docker-compose.yml`](deploy/compose/docker-compose.yml)
+- Helm: [`deploy/helm/grimmory/Chart.yaml`](deploy/helm/grimmory/Chart.yaml)
+- Podman Quadlet: [`deploy/podman/quadlet/README.md`](deploy/podman/quadlet/README.md)
+
+---
+
+## Developer Surfaces
+
+
+Contributor workflow, PR policy, and release semantics live in [CONTRIBUTING.md](CONTRIBUTING.md).
+Non-English translation contributions are managed through [Crowdin](https://crowdin.com/project/grimmory).
+
+General purpose development guidelines live in [DEVELOPMENT.md](DEVELOPMENT.md). Component-specific implementation guidance lives in:
+
+- [`backend/DEVELOPMENT.md`](backend/DEVELOPMENT.md)
+- [`frontend/DEVELOPMENT.md`](frontend/DEVELOPMENT.md)
+
+The root [`Justfile`](Justfile) is the primary local command surface and mirrors the folder-local `backend/Justfile` and `frontend/Justfile` entrypoints.
+
+```bash
+just               # Show root + api + ui recipes
+just test          # Run backend and frontend tests
+just api test      # Run backend tests only
+just ui dev        # Start the frontend dev server
+```
+
+---
+
+## API Reference Docs
+
+When enabled via `API_DOCS_ENABLED`, API reference documentation is available as both an `openapi.json` and as publicly accessible docs. The endpoints are:
+- API reference docs are available at `http://localhost:6060/api/docs`
+- OpenAPI JSON is available at `http://localhost:6060/api/openapi.json`
 
 ---
 
@@ -188,12 +247,12 @@ All other features — reading, metadata, sync — remain fully functional.
 
 ## Community and Support
 
-| Channel | |
-| :--- | :--- |
-| Report a bug | [Open an issue](https://github.com/grimmory-tools/grimmory/issues/new?template=bug_report.yml) |
-| Request a feature | [Open an issue](https://github.com/grimmory-tools/grimmory/issues/new?template=feature_request.yml) |
-| Contribute | [Contributing Guide](CONTRIBUTING.md) |
-| Join the discussion | [Discord Server](https://discord.gg/FwqHeFWk) |
+| Channel |                                                                                                         |
+| :--- |:--------------------------------------------------------------------------------------------------------|
+| Report a bug | [Open an issue](https://github.com/grimmory-tools/grimmory/issues/new?template=bug-report.yml)          |
+| Request a feature | [Open a Discussion](https://github.com/orgs/grimmory-tools/discussions/new?category=feature-requests-ideas) |
+| Contribute | [Contributing Guide](CONTRIBUTING.md)                                                                   |
+| Join the discussion | [Discord Server](https://discord.gg/9YJ7HB4n8T)                                                         |
 
 > [!WARNING]
 > Before opening a pull request, open an issue first and get maintainer approval. Pull requests without a linked issue, without screenshots or video proof, or without pasted test output will be closed. All code must follow the project [backend](CONTRIBUTING.md#backend-conventions) and [frontend](CONTRIBUTING.md#frontend-conventions) conventions. AI-assisted contributions are welcome, but you must run, test, and understand every line you submit. See the [Contributing Guide](CONTRIBUTING.md) for full details.
@@ -202,4 +261,4 @@ All other features — reading, metadata, sync — remain fully functional.
 
 ## License
 
-Distributed under the terms of the [LICENSE](LICENSE) file in this repository.
+Distributed under the terms of the [AGPL-3.0 License](LICENSE).

@@ -1,0 +1,128 @@
+/*
+ * Small global utilities.
+ *
+ * Keep this file limited to generic helpers that are safe anywhere in the app.
+ * Prefer component styles for feature-specific layout or presentation.
+ */
+
+.surface-app,
+.surface-page,
+.surface-card {
+  --control-bg-hover: color-mix(in srgb, var(--color-surface-0) 6%, var(--control-bg));
+  --control-border: color-mix(in srgb, var(--color-surface-0) 12%, var(--control-bg));
+  --control-border-hover: color-mix(in srgb, var(--color-surface-0) 18%, var(--control-bg));
+  --control-focus-border: color-mix(in srgb, var(--color-primary) 50%, var(--control-bg));
+}
+
+.surface-app {
+  --control-bg: color-mix(in srgb, var(--color-surface-0) 6%, var(--color-app));
+
+  background: var(--color-app);
+}
+
+.surface-page {
+  --control-bg: color-mix(in srgb, var(--color-surface-0) 6%, var(--color-page));
+
+  background: var(--color-page);
+}
+
+.surface-card {
+  --control-bg: color-mix(in srgb, var(--color-surface-0) 6%, var(--color-card));
+
+  background: var(--color-card);
+  box-shadow: inset 0 0 0 1px var(--color-card-outline);
+}
+
+.surface-card-outline {
+  position: relative;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 1px var(--color-card-outline);
+    pointer-events: none;
+  }
+}
+
+.gradient-divider {
+  flex-shrink: 0;
+  height: 1px;
+  min-height: 1px;
+  margin: 0.2188rem 0;
+  background: linear-gradient(90deg, transparent, var(--color-border), transparent);
+}
+
+.chart-info-icon {
+  color: var(--color-text-muted);
+  font-size: 0.7875rem;
+  cursor: help;
+  transition: color var(--transition-base);
+
+  &:hover {
+    color: var(--color-text-secondary);
+  }
+}
+
+.virtual-scroller {
+  .virtual-content {
+    position: relative;
+    width: 100%;
+  }
+
+  .virtual-cell {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    justify-content: center;
+    box-sizing: border-box;
+  }
+
+  .virtual-cell > app-author-card,
+  .virtual-cell > app-book-card,
+  .virtual-cell > app-series-card {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .virtual-scroller-item {
+    position: relative;
+  }
+}
+
+.browser-grid-options {
+  display: flex;
+  gap: 0.4375rem;
+}
+
+.browser-grid-option-btn {
+  flex: 1;
+  padding: 0.2188rem 0.4375rem;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 6px;
+  background-color: var(--color-card);
+  color: var(--color-text);
+  font-size: var(--app-text-base);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover:not(:disabled) {
+    border-color: var(--color-primary);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  &.active {
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+    color: var(--color-primary-contrast);
+  }
+}

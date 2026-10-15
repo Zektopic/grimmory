@@ -1,80 +1,131 @@
-# Stage 1: Build the Angular app
-FROM docker.io/library/node:22-alpine AS angular-build
+FROM --platform=$BUILDPLATFORM node:24-alpine AS frontend-build
 
-WORKDIR /angular-app
+ENV PNPM_HOME="/pnpm"
+ENV PATH="${PNPM_HOME}:${PATH}"
 
-COPY ./booklore-ui/package.json ./booklore-ui/package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm \
-    npm config set registry https://registry.npmjs.org/ \
-    && npm install --force --legacy-peer-deps
+WORKDIR /workspace
 
+RUN npm install --ignore-scripts -g pnpm@11.19.0
 
-COPY ./booklore-ui /angular-app/
+COPY pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN --mount=type=cache,target=/pnpm/store \
+    pnpm config set store-dir /pnpm/store && \
+    pnpm fetch
 
-RUN npm run build --configuration=production
+COPY package.json ./
+COPY frontend/package.json ./frontend/
+COPY tools/release/package.json ./tools/release/
+RUN --mount=type=cache,target=/pnpm/store \
+    pnpm install --offline --frozen-lockfile --ignore-scripts
 
-# Stage 2: Build the Spring Boot app with Gradle
-FROM docker.io/library/gradle:9.3.1-jdk25-alpine AS springboot-build
+COPY frontend/ ./frontend/
+RUN --mount=type=cache,target=/workspace/frontend/.angular/cache \
+    CI=1 NG_CLI_ANALYTICS=false pnpm -C frontend run build:prod
 
-WORKDIR /springboot-app
+FROM --platform=$BUILDPLATFORM gradle:9.5.1-jdk25-alpine AS backend-build
 
-# Copy only build files first to cache dependencies
-COPY ./booklore-api/build.gradle ./booklore-api/settings.gradle /springboot-app/
+ARG TARGETARCH
+ARG APP_VERSION=development
+ARG APP_REVISION=unknown
 
-# Download dependencies (cached layer)
-RUN --mount=type=cache,target=/home/gradle/.gradle \
-    gradle dependencies --no-daemon
+WORKDIR /workspace/backend
 
-COPY ./booklore-api/src /springboot-app/src
-
-# Copy Angular dist into Spring Boot static resources so it's embedded in the JAR
-COPY --from=angular-build /angular-app/dist/booklore/browser /springboot-app/src/main/resources/static
-
-# Inject version into application.yaml.
-# We use sed to replace Spring's runtime placeholder with a hard literal so the
-# value is baked into the JAR and does not depend on the APP_VERSION env var
-# being present in the running container.
-# The ARG is included in the RUN command explicitly so buildah/Docker invalidates
-# the layer cache whenever APP_VERSION changes (avoids stale cached builds).
-ARG APP_VERSION
-ENV APP_VERSION=${APP_VERSION}
-RUN echo "Building with APP_VERSION=${APP_VERSION}" && \
-    sed -i "s|version: \${APP_VERSION:development}|version: ${APP_VERSION}|g" \
-        /springboot-app/src/main/resources/application.yaml && \
-    grep "version:" /springboot-app/src/main/resources/application.yaml
+COPY backend/gradlew backend/gradlew.bat backend/build.gradle.kts backend/settings.gradle.kts backend/gradle.lockfile ./
+COPY backend/gradle ./gradle
+RUN chmod +x ./gradlew
 
 RUN --mount=type=cache,target=/home/gradle/.gradle \
-    gradle clean build -x test --no-daemon --parallel
+    ./gradlew --no-daemon dependencies
 
-# Stage 3: Final image
-FROM docker.io/library/eclipse-temurin:25-jre-alpine
+COPY LICENSE NOTICE /workspace/
+COPY backend/ ./
+COPY --from=frontend-build /workspace/frontend/dist/grimmory/browser /tmp/frontend-dist
 
-ARG APP_VERSION
-ARG APP_REVISION
-ENV APP_VERSION=${APP_VERSION}
-ENV APP_REVISION=${APP_REVISION}
+RUN --mount=type=cache,target=/home/gradle/.gradle \
+    TARGETARCH=${TARGETARCH} ./gradlew --no-daemon -PfrontendDistDir=/tmp/frontend-dist bootJar
 
-# Set OCI labels
-LABEL org.opencontainers.image.title="WT-BookLore" \
-      org.opencontainers.image.description="WT-BookLore: A self-hosted, multi-user digital library with smart shelves, auto metadata, Kobo & KOReader sync, BookDrop imports, OPDS support, and a built-in reader for EPUB, PDF, and comics. This fork includes native support for the KOReader Sync plugin as well as all changes done by me." \
-      org.opencontainers.image.source="https://gitlab.worldteacher.dev/wt-booklore/wt-booklore" \
-      org.opencontainers.image.url="https://gitlab.worldteacher.dev/wt-booklore/wt-booklore" \
-      org.opencontainers.image.documentation="https://booklore.org/docs/getting-started" \
-      org.opencontainers.image.version=$APP_VERSION \
-      org.opencontainers.image.revision=$APP_REVISION \
-      org.opencontainers.image.licenses="GPL-3.0" \
-      org.opencontainers.image.base.name="docker.io/library/eclipse-temurin:25-jre-alpine"
+RUN set -eux; \
+    jar_path="$(find build/libs -maxdepth 1 -name '*.jar' ! -name '*plain.jar' | head -n 1)"; \
+    cp "$jar_path" /workspace/backend/app.jar
 
-ENV JAVA_TOOL_OPTIONS="-XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication -XX:+UseContainerSupport -XX:+UseCompactObjectHeaders -XX:MaxRAMPercentage=75.0"
+FROM mwader/static-ffmpeg:8.1 AS ffprobe-layer
 
-RUN apk update && apk add --no-cache su-exec=0.3-r0
+FROM scratch AS kepubify-layer-amd64
 
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+ARG KEPUBIFY_VERSION="4.0.4"
+ARG KEPUBIFY_AMD64_CHECKSUM="sha256:37d7628d26c5c906f607f24b36f781f306075e7073a6fe7820a751bb60431fc5"
+
+ADD \
+    --checksum="${KEPUBIFY_AMD64_CHECKSUM}" \
+    --chmod=755 \
+    https://github.com/pgaskin/kepubify/releases/download/v${KEPUBIFY_VERSION}/kepubify-linux-64bit /kepubify
+
+FROM scratch AS kepubify-layer-arm64
+
+ARG KEPUBIFY_VERSION="4.0.4"
+ARG KEPUBIFY_ARM64_CHECKSUM="sha256:5a15b8f6f6a96216c69330601bca29638cfee50f7bf48712795cff88ae2d03a3"
+
+ADD \
+    --checksum="${KEPUBIFY_ARM64_CHECKSUM}" \
+    --chmod=755 \
+    https://github.com/pgaskin/kepubify/releases/download/v${KEPUBIFY_VERSION}/kepubify-linux-arm64 /kepubify
+
+FROM kepubify-layer-${TARGETARCH} AS kepubify-layer
+
+FROM eclipse-temurin:25-jre-alpine
+
+ENV JAVA_TOOL_OPTIONS="-XX:+UseShenandoahGC \
+    -XX:ShenandoahGCHeuristics=compact \
+    -XX:+UseCompactObjectHeaders \
+    -XX:MaxRAMPercentage=60.0 \
+    -XX:InitialRAMPercentage=8.0 \
+    -XX:+ExitOnOutOfMemoryError \
+    -XX:MaxMetaspaceSize=256m \
+    -XX:ReservedCodeCacheSize=48m \
+    -Xss512k \
+    -XX:CICompilerCount=2 \
+    -XX:+UnlockExperimentalVMOptions \
+    -XX:+UseStringDeduplication \
+    -XX:ShenandoahUncommitDelay=5000 \
+    -XX:ShenandoahGuaranteedGCInterval=30000 \
+    -XX:MaxDirectMemorySize=256m \
+    --enable-native-access=ALL-UNNAMED \
+    --enable-preview"
+
+RUN apk add --no-cache su-exec libstdc++ libgcc libarchive && \
+    mkdir -p /bookdrop
+
+# Manually link `libarchive.so.13` so java and other libraries can see it
+RUN ln -s /usr/lib/libarchive.so.13 /usr/lib/libarchive.so
+
+COPY packaging/docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
-COPY --from=springboot-build /springboot-app/build/libs/booklore-api-0.0.1-SNAPSHOT.jar /app/app.jar
 
-ARG BOOKLORE_PORT=6060
-EXPOSE ${BOOKLORE_PORT}
+COPY --from=ffprobe-layer /ffprobe /usr/local/bin/ffprobe
+COPY --from=kepubify-layer /kepubify /usr/local/bin/kepubify
 
-ENTRYPOINT ["entrypoint.sh"]
-CMD ["java", "-jar", "/app/app.jar"]
+COPY --from=backend-build /workspace/backend/app.jar /app/app.jar
+
+ARG APP_VERSION=development
+ARG APP_REVISION=unknown
+
+LABEL org.opencontainers.image.title="Grimmory" \
+    org.opencontainers.image.description="Grimmory: a self-hosted, multi-user digital library with smart shelves, auto metadata, Kobo and KOReader sync, BookDrop imports, OPDS support, and a built-in reader for EPUB, PDF, and comics." \
+    org.opencontainers.image.source="https://github.com/grimmory-tools/grimmory" \
+    org.opencontainers.image.url="https://github.com/grimmory-tools/grimmory" \
+    org.opencontainers.image.documentation="https://grimmory.org/docs/getting-started" \
+    org.opencontainers.image.version=$APP_VERSION \
+    org.opencontainers.image.revision=$APP_REVISION \
+    org.opencontainers.image.licenses="AGPL-3.0" \
+    org.opencontainers.image.base.name="docker.io/library/eclipse-temurin:25-jre-alpine"
+
+ENV APP_VERSION=${APP_VERSION} \
+    APP_REVISION=${APP_REVISION}
+
+EXPOSE 6060
+
+HEALTHCHECK --interval=60s --timeout=10s --start-period=60s --retries=5 \
+  CMD wget -q --spider http://localhost:${SERVER_PORT:-${BOOKLORE_PORT:-6060}}/api/v1/healthcheck
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["java", "--enable-native-access=ALL-UNNAMED", "--enable-preview", "-jar", "/app/app.jar"]

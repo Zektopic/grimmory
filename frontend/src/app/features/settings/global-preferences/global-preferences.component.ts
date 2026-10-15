@@ -1,0 +1,132 @@
+import {Component, DestroyRef, effect, inject, OnInit} from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+import {FormsModule} from '@angular/forms';
+import {MenuItem, MessageService} from '@openng/optimus-ui/api';
+import {Button} from '@openng/optimus-ui/button';
+import {SplitButton} from '@openng/optimus-ui/splitbutton';
+import {ToggleSwitch} from '@openng/optimus-ui/toggleswitch';
+
+import {AppSettingsService} from '../../../shared/service/app-settings.service';
+import {BookMetadataManageService} from '../../book/service/book-metadata-manage.service';
+import {AppSettingKey, CoverCroppingSettings} from '../../../shared/model/app-settings.model';
+import {InputText} from '@openng/optimus-ui/inputtext';
+import {Slider} from '@openng/optimus-ui/slider';
+import {TranslocoDirective, TranslocoPipe, TranslocoService} from '@jsverse/transloco';
+
+@Component({
+  selector: 'app-global-preferences',
+  standalone: true,
+  imports: [
+    Button,
+    ToggleSwitch,
+    FormsModule,
+    InputText,
+    Slider,
+    SplitButton,
+    TranslocoDirective,
+    TranslocoPipe
+  ],
+  templateUrl: './global-preferences.component.html',
+  styleUrl: './global-preferences.component.scss'
+})
+export class GlobalPreferencesComponent implements OnInit {
+
+  toggles = {
+    autoBookSearch: false,
+    similarBookRecommendation: false,
+  };
+
+  coverCroppingSettings: CoverCroppingSettings = {
+    verticalCroppingEnabled: false,
+    horizontalCroppingEnabled: false,
+    aspectRatioThreshold: 2.5,
+    smartCroppingEnabled: false
+  };
+
+  private appSettingsService = inject(AppSettingsService);
+  private bookMetadataManageService = inject(BookMetadataManageService);
+  private messageService = inject(MessageService);
+  private t = inject(TranslocoService);
+  private destroyRef = inject(DestroyRef);
+
+  private readonly syncSettingsEffect = effect(() => {
+    const settings = this.appSettingsService.appSettings();
+    if (!settings) {
+      return;
+    }
+
+    if (settings.maxFileUploadSizeInMb) {
+      this.maxFileUploadSizeInMb = settings.maxFileUploadSizeInMb;
+    }
+    if (settings.coverCroppingSettings) {
+      this.coverCroppingSettings = {...settings.coverCroppingSettings};
+    }
+    this.toggles.autoBookSearch = settings.autoBookSearch ?? false;
+    this.toggles.similarBookRecommendation = settings.similarBookRecommendation ?? false;
+  });
+
+  maxFileUploadSizeInMb?: number;
+  regenerateCoverMenuItems: MenuItem[] = [];
+
+  ngOnInit(): void {
+    this.regenerateCoverMenuItems = [
+      {
+        label: this.t.translate('settingsApp.covers.regenerateMissingBtn'),
+        icon: 'pi pi-images',
+        command: () => this.regenerateCovers(true)
+      }
+    ];
+  }
+
+  onToggleChange(settingKey: keyof typeof this.toggles, checked: boolean): void {
+    this.toggles[settingKey] = checked;
+    const toggleKeyMap: Record<string, AppSettingKey> = {
+      autoBookSearch: AppSettingKey.AUTO_BOOK_SEARCH,
+      similarBookRecommendation: AppSettingKey.SIMILAR_BOOK_RECOMMENDATION,
+    };
+    const keyToSend = toggleKeyMap[settingKey];
+    if (keyToSend) {
+      this.saveSetting(keyToSend, checked);
+    } else {
+      console.warn(`Unknown toggle key: ${settingKey}`);
+    }
+  }
+
+  onCoverCroppingChange(): void {
+    this.saveSetting(AppSettingKey.COVER_CROPPING_SETTINGS, this.coverCroppingSettings);
+  }
+
+  saveFileSize() {
+    if (!this.maxFileUploadSizeInMb || this.maxFileUploadSizeInMb <= 0) {
+      this.showMessage('error', this.t.translate('settingsApp.fileManagement.invalidInput'), this.t.translate('settingsApp.fileManagement.invalidInputDetail'));
+      return;
+    }
+    this.saveSetting(AppSettingKey.MAX_FILE_UPLOAD_SIZE_IN_MB, this.maxFileUploadSizeInMb);
+  }
+
+  regenerateCovers(missingOnly = false): void {
+    this.bookMetadataManageService.regenerateCovers(missingOnly).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: () =>
+        this.showMessage('success', this.t.translate('settingsApp.covers.regenerateStarted'), this.t.translate('settingsApp.covers.regenerateStartedDetail')),
+      error: () =>
+        this.showMessage('error', this.t.translate('common.error'), this.t.translate('settingsApp.covers.regenerateError'))
+    });
+  }
+
+  private saveSetting(key: string, value: unknown): void {
+    this.appSettingsService.saveSettings([{key, newValue: value}]).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: () =>
+        this.showMessage('success', this.t.translate('settingsApp.settingsSaved'), this.t.translate('settingsApp.settingsSavedDetail')),
+      error: () =>
+        this.showMessage('error', this.t.translate('common.error'), this.t.translate('settingsApp.settingsError'))
+    });
+  }
+
+  private showMessage(severity: 'success' | 'error', summary: string, detail: string): void {
+    this.messageService.add({severity, summary, detail});
+  }
+}

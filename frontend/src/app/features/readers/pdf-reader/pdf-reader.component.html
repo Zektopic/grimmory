@@ -1,0 +1,421 @@
+@if (isLoading() || (viewerMode() === 'book' && !isInitialScrollDone())) {
+<div class="loading-container">
+  <p-progressSpinner></p-progressSpinner>
+</div>
+}
+
+@if (!isLoading()) {
+<div class="pdf-reader-container" [class.dark]="isDarkTheme()" [class.v-hidden]="viewerMode() === 'book' && !isInitialScrollDone()" [class.footer-hidden]="!footerVisible()">
+
+  <!-- Footer trigger zone -->
+  <div class="footer-trigger-zone" [class.inactive]="footerVisible()" (mouseenter)="onFooterTriggerZoneEnter()"></div>
+
+  @if (viewerMode() === 'book') {
+  <!-- Header trigger zone -->
+  <div class="header-trigger-zone" [class.inactive]="headerVisible()" (mouseenter)="onHeaderTriggerZoneEnter()"></div>
+  }
+
+  @if (viewerMode() === 'document') {
+    @if (isDocViewerInfoVisible()) {
+    <div class="doc-viewer-info">
+      <span>{{ 'readerPdf.docViewer.changesSavedInfo' | transloco }}</span>
+      <button class="dismiss-btn" [attr.aria-label]="'readerPdf.docViewer.dismiss' | transloco" (click)="dismissDocViewerInfo()">
+        <app-reader-icon name="close" [size]="14" />
+      </button>
+    </div>
+    }
+
+    <div class="embed-header-actions">
+      <button class="embed-action-btn save-btn" [title]="'readerPdf.docViewer.saveDocument' | transloco" [attr.aria-label]="'readerPdf.docViewer.saveDocument' | transloco"
+        [disabled]="isSavingDocument() || isClosingReader()" [attr.aria-busy]="isSavingDocument()"
+        (click)="saveDocument()">
+        <app-reader-icon name="save" [size]="18" />
+      </button>
+      <button class="embed-action-btn close-btn" [title]="'readerPdf.toolbar.closePdfReader' | transloco" [attr.aria-label]="'readerPdf.toolbar.closePdfReader' | transloco"
+        [disabled]="isClosingReader()" (pointerdown)="onCloseReaderPointerDown($event)" (click)="onCloseReaderClick($event)">
+        <app-reader-icon name="close" [size]="18" />
+      </button>
+    </div>
+
+    <div id="embedpdf-viewer"></div>
+  }
+
+  <!-- Book Viewer (direct EmbedPDF) -->
+  @if (viewerMode() === 'book') {
+
+  <!-- Book header toolbar -->
+  <div class="pdf-header-toolbar" [class.chrome-hidden]="!headerVisible()">
+    <div class="header-left">
+      <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'sidebar' }"></ng-container>
+    </div>
+
+    <span class="book-title">{{ bookTitle() }}</span>
+
+    <div class="header-right">
+      <!-- Desktop toolbar actions (hidden on mobile) -->
+      <div class="desktop-actions">
+        <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'search' }"></ng-container>
+        <div class="separator"></div>
+
+        <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'highlight' }"></ng-container>
+        <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'freeText' }"></ng-container>
+        <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'ink' }"></ng-container>
+        <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'pan' }"></ng-container>
+        <div class="separator"></div>
+
+        <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'bookmark' }"></ng-container>
+        <div class="separator"></div>
+
+        <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'zoomOut' }"></ng-container>
+        <div class="zoom-menu-wrapper">
+          <button class="icon-btn zoom-label-btn" [attr.aria-label]="'readerPdf.toolbar.zoomPreset' | transloco" (click)="toggleZoomMenu()">
+            <span class="zoom-label">{{ zoom() }}</span>
+          </button>
+          @if (isZoomMenuOpen()) {
+          <div class="zoom-dropdown">
+            @for (preset of zoomPresets; track preset.value) {
+            <button class="zoom-option" [class.active]="zoom() === preset.value" (click)="setZoomPreset(preset.value)">
+              {{ preset.label }}
+            </button>
+            }
+          </div>
+          }
+        </div>
+        <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'zoomIn' }"></ng-container>
+        <div class="separator"></div>
+
+        <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'spreadMode' }"></ng-container>
+        <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'scrollLayout' }"></ng-container>
+        <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'rotate' }"></ng-container>
+        <div class="separator"></div>
+
+        <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'theme' }"></ng-container>
+        <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'fullscreen' }"></ng-container>
+        <div class="separator"></div>
+      </div>
+
+      <!-- Mobile actions -->
+      <div class="mobile-actions">
+        <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'bookmark', iconSize: 20 }"></ng-container>
+        <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'overflow', iconSize: 20 }"></ng-container>
+      </div>
+
+      <!-- Close button (always visible) -->
+      <button class="icon-btn close-btn" [title]="'readerPdf.toolbar.closePdfReader' | transloco" [attr.aria-label]="'readerPdf.toolbar.closePdfReader' | transloco"
+        [disabled]="isClosingReader()" (pointerdown)="onCloseReaderPointerDown($event)" (click)="onCloseReaderClick($event)">
+        <app-reader-icon name="close" [size]="20" />
+      </button>
+    </div>
+  </div>
+
+  <!-- Mobile overflow menu -->
+  @if (isToolbarOverflowOpen()) {
+  <div class="toolbar-overflow-backdrop" role="presentation" (click)="closeToolbarOverflow()"></div>
+  <div class="toolbar-overflow-menu" tabindex="-1" (keydown.escape)="closeToolbarOverflow()" #overflowMenu>
+    <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'sidebar', isOverflow: true }"></ng-container>
+    <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'search', isOverflow: true }"></ng-container>
+    <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'highlight', isOverflow: true }"></ng-container>
+    <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'freeText', isOverflow: true }"></ng-container>
+    <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'ink', isOverflow: true }"></ng-container>
+    <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'pan', isOverflow: true }"></ng-container>
+    <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'scrollLayout', isOverflow: true }"></ng-container>
+    <div class="overflow-divider"></div>
+    <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'bookmark', isOverflow: true }"></ng-container>
+    <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'spreadMode', isOverflow: true }"></ng-container>
+    <div class="overflow-divider"></div>
+    @for (preset of zoomPresets; track preset.value) {
+    <button class="overflow-item" [class.active]="zoom() === preset.value" (click)="setZoomPreset(preset.value); closeToolbarOverflow()">
+      <app-reader-icon name="magnifier" [size]="18" />
+      <span>{{ preset.label }}</span>
+    </button>
+    }
+    <div class="overflow-divider"></div>
+    <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'theme', isOverflow: true }"></ng-container>
+    <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'rotate', isOverflow: true }"></ng-container>
+    <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'zoomIn', isOverflow: true }"></ng-container>
+    <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'zoomOut', isOverflow: true }"></ng-container>
+    <ng-container *ngTemplateOutlet="actionBtn; context: { id: 'fullscreen', isOverflow: true }"></ng-container>
+    <button class="overflow-item" [disabled]="isClosingReader()" (click)="onCloseReaderClick($event); closeToolbarOverflow()">
+      <app-reader-icon name="close" [size]="18" />
+      <span>{{ 'readerPdf.toolbar.closePdfReader' | transloco }}</span>
+    </button>
+  </div>
+  }
+
+  <!-- Search bar (slides below header) -->
+  @if (isSearchOpen()) {
+  <div class="search-bar" [class.chrome-hidden]="!headerVisible()">
+    <div class="search-input-wrapper">
+      <app-reader-icon name="search" [size]="14" />
+      <input type="text" class="search-input" #searchInput
+        [ngModel]="searchQuery()" (ngModelChange)="onSearchQueryChange($event)"
+        [attr.aria-label]="'readerPdf.toolbar.searchPlaceholder' | transloco"
+        [placeholder]="'readerPdf.toolbar.searchPlaceholder' | transloco"
+        (keyup.enter)="onSearchNext()"
+        (keyup.escape)="closeSearch()" />
+    </div>
+    <button class="icon-btn search-nav-btn" [title]="'readerPdf.toolbar.searchPrevious' | transloco" [attr.aria-label]="'readerPdf.toolbar.searchPrevious' | transloco" (click)="onSearchPrevious()">
+      <app-reader-icon name="chevron-left" [size]="14" />
+    </button>
+    <button class="icon-btn search-nav-btn" [title]="'readerPdf.toolbar.searchNext' | transloco" [attr.aria-label]="'readerPdf.toolbar.searchNext' | transloco" (click)="onSearchNext()">
+      <app-reader-icon name="chevron-right" [size]="14" />
+    </button>
+    <button class="icon-btn search-close" [attr.aria-label]="'readerPdf.toolbar.closeSearch' | transloco" (click)="closeSearch()">
+      <app-reader-icon name="close" [size]="14" />
+    </button>
+  </div>
+  }
+
+  <!-- Book viewer container -->
+  <div #bookViewerContainer id="book-viewer" class="book-viewer-container" [class.horizontal-scroll]="scrollLayout() === 'horizontal'"></div>
+
+  <!-- Sidebar -->
+  <app-pdf-sidebar
+    [isOpen]="sidebarOpen()"
+    [outline]="outline()"
+    [bookmarks]="pdfBookmarks()"
+    [annotations]="annotationListItems()"
+    (closed)="onSidebarClosed()"
+    (navigateToPage)="onSidebarNavigateToPage($event)"
+    (deleteBookmark)="onDeleteBookmark($event)"
+    (deleteAnnotation)="onDeleteAnnotation($event)"
+  />
+
+  }
+
+  <!-- Footer (shared across both viewer modes) -->
+  <div class="pdf-footer" [class.is-visible]="footerVisible()">
+    <div class="page-nav-left">
+      <button class="nav-btn" (click)="goToFirstPage()" [disabled]="page() <= 1"
+        [title]="'readerPdf.footer.firstPage' | transloco" [attr.aria-label]="'readerPdf.footer.firstPage' | transloco">
+        <app-reader-icon name="chevron-first" [size]="16" />
+      </button>
+      <button class="nav-btn" (click)="goToPreviousPage()" [disabled]="page() <= 1"
+        [title]="'readerPdf.footer.previousPage' | transloco" [attr.aria-label]="'readerPdf.footer.previousPage' | transloco">
+        <app-reader-icon name="chevron-left" [size]="16" />
+      </button>
+      <div class="page-info">
+        <span class="current">{{ page() }}</span>
+        <span class="total"> {{ 'readerPdf.footer.of' | transloco }} {{ totalPages() }}</span>
+      </div>
+      <button class="nav-btn" (click)="goToNextPage()" [disabled]="page() >= totalPages()"
+        [title]="'readerPdf.footer.nextPage' | transloco" [attr.aria-label]="'readerPdf.footer.nextPage' | transloco">
+        <app-reader-icon name="chevron-right" [size]="16" />
+      </button>
+      <button class="nav-btn" (click)="goToLastPage()" [disabled]="page() >= totalPages()"
+        [title]="'readerPdf.footer.lastPage' | transloco" [attr.aria-label]="'readerPdf.footer.lastPage' | transloco">
+        <app-reader-icon name="chevron-last" [size]="16" />
+      </button>
+    </div>
+
+    <div class="page-controls">
+      <div class="slider-wrapper">
+        <input type="range" class="page-slider" [min]="1" [max]="totalPages()" [value]="page()"
+          (input)="onSliderChange($event)" list="pdf-page-ticks" [title]="'readerPdf.footer.pageSlider' | transloco"
+          aria-label="{{ 'readerPdf.footer.pageSlider' | transloco }}" />
+        <datalist id="pdf-page-ticks">
+          @for (tick of sliderTicks(); track tick) {
+          <option [value]="tick"></option>
+          }
+        </datalist>
+      </div>
+
+      <div class="goto-page">
+        <input type="number" [ngModel]="goToPageInput()" (ngModelChange)="goToPageInput.set($event)"
+          [min]="1" [max]="totalPages()"
+          [placeholder]="'readerPdf.footer.pagePlaceholder' | transloco" class="page-input"
+          aria-label="{{ 'readerPdf.footer.pagePlaceholder' | transloco }}"
+          (keyup.enter)="onGoToPage()" />
+        <button class="go-btn" (click)="onGoToPage()"
+          [disabled]="goToPageInput() === null || goToPageInput()! < 1 || goToPageInput()! > totalPages()">
+          {{ 'readerPdf.footer.go' | transloco }}
+        </button>
+      </div>
+    </div>
+
+    <div class="footer-spacer"></div>
+
+    <div class="viewer-mode-toggle">
+      <button class="toggle-btn toggle-book" [class.active]="viewerMode() === 'book'" (click)="setViewerMode('book')">
+        <i class="pi pi-book"></i><span>{{ 'readerPdf.footer.bookViewer' | transloco }}</span>
+      </button>
+      <button class="toggle-btn toggle-doc" [class.active]="viewerMode() === 'document'" (click)="setViewerMode('document')">
+        <i class="pi pi-file"></i><span>{{ 'readerPdf.footer.docViewer' | transloco }}</span>
+      </button>
+    </div>
+  </div>
+
+</div>
+}
+
+<!-- Action Button Template -->
+<ng-template #actionBtn let-id="id" let-isOverflow="isOverflow" let-iconSize="iconSize">
+  @let size = iconSize || 18;
+  @switch (id) {
+    @case ('sidebar') {
+      <ng-container *ngTemplateOutlet="btnBase; context: {
+        id: 'sidebar',
+        icon: 'sidebar',
+        title: 'readerPdf.toolbar.sidebar',
+        active: sidebarOpen(),
+        isOverflow: isOverflow,
+        size: size
+      }"></ng-container>
+    }
+    @case ('search') {
+      <ng-container *ngTemplateOutlet="btnBase; context: {
+        id: 'search',
+        icon: 'search',
+        title: 'readerPdf.toolbar.search',
+        active: isSearchOpen(),
+        pressed: isSearchOpen(),
+        isOverflow: isOverflow,
+        size: size
+      }"></ng-container>
+    }
+    @case ('highlight') {
+      <ng-container *ngTemplateOutlet="btnBase; context: {
+        id: 'highlight',
+        icon: 'highlight',
+        title: 'readerPdf.toolbar.highlight',
+        active: activeAnnotationTool() === 'highlight',
+        pressed: activeAnnotationTool() === 'highlight',
+        isOverflow: isOverflow,
+        size: size
+      }"></ng-container>
+    }
+    @case ('freeText') {
+      <ng-container *ngTemplateOutlet="btnBase; context: {
+        id: 'freeText',
+        icon: 'free-text',
+        title: 'readerPdf.toolbar.freeText',
+        active: activeAnnotationTool() === 'freeText',
+        pressed: activeAnnotationTool() === 'freeText',
+        isOverflow: isOverflow,
+        size: size
+      }"></ng-container>
+    }
+    @case ('ink') {
+      <ng-container *ngTemplateOutlet="btnBase; context: {
+        id: 'ink',
+        icon: 'draw',
+        title: 'readerPdf.toolbar.draw',
+        active: activeAnnotationTool() === 'ink',
+        pressed: activeAnnotationTool() === 'ink',
+        isOverflow: isOverflow,
+        size: size
+      }"></ng-container>
+    }
+    @case ('pan') {
+      <ng-container *ngTemplateOutlet="btnBase; context: {
+        id: 'pan',
+        icon: 'pan',
+        title: 'readerPdf.toolbar.pan',
+        active: isPanActive(),
+        pressed: isPanActive(),
+        isOverflow: isOverflow,
+        size: size
+      }"></ng-container>
+    }
+    @case ('bookmark') {
+      <ng-container *ngTemplateOutlet="btnBase; context: {
+        id: 'bookmark',
+        icon: 'bookmark',
+        title: isCurrentPageBookmarked() ? 'readerPdf.toolbar.removeBookmark' : 'readerPdf.toolbar.addBookmark',
+        active: isCurrentPageBookmarked(),
+        pressed: isCurrentPageBookmarked(),
+        className: 'bookmark-btn',
+        isOverflow: isOverflow,
+        size: size
+      }"></ng-container>
+    }
+    @case ('zoomOut') {
+      <ng-container *ngTemplateOutlet="btnBase; context: {
+        id: 'zoomOut',
+        icon: 'zoom-out',
+        title: 'readerPdf.toolbar.zoomOut',
+        isOverflow: isOverflow,
+        size: size
+      }"></ng-container>
+    }
+    @case ('zoomIn') {
+      <ng-container *ngTemplateOutlet="btnBase; context: {
+        id: 'zoomIn',
+        icon: 'zoom-in',
+        title: 'readerPdf.toolbar.zoomIn',
+        isOverflow: isOverflow,
+        size: size
+      }"></ng-container>
+    }
+    @case ('spreadMode') {
+      <ng-container *ngTemplateOutlet="btnBase; context: {
+        id: 'spreadMode',
+        icon: spreadMode() === 'none' ? 'spread-none' : 'spread-double',
+        title: 'readerPdf.toolbar.spreadMode',
+        isOverflow: isOverflow,
+        size: size
+      }"></ng-container>
+    }
+    @case ('scrollLayout') {
+      <ng-container *ngTemplateOutlet="btnBase; context: {
+        id: 'scrollLayout',
+        icon: scrollLayout() === 'horizontal' ? 'scroll-horizontal' : 'scroll-vertical',
+        title: scrollLayout() === 'horizontal' ? 'readerPdf.toolbar.scrollLayoutHorizontal' : 'readerPdf.toolbar.scrollLayoutVertical',
+        pressed: scrollLayout() === 'horizontal',
+        isOverflow: isOverflow,
+        size: size
+      }"></ng-container>
+    }
+    @case ('rotate') {
+      <ng-container *ngTemplateOutlet="btnBase; context: {
+        id: 'rotate',
+        icon: 'rotate',
+        title: 'readerPdf.toolbar.rotatePage',
+        isOverflow: isOverflow,
+        size: size
+      }"></ng-container>
+    }
+    @case ('theme') {
+      <ng-container *ngTemplateOutlet="btnBase; context: {
+        id: 'theme',
+        icon: isDarkTheme() ? 'sun' : 'moon',
+        title: isDarkTheme() ? 'readerPdf.toolbar.switchToLightMode' : 'readerPdf.toolbar.switchToDarkMode',
+        pressed: isDarkTheme(),
+        isOverflow: isOverflow,
+        size: size
+      }"></ng-container>
+    }
+    @case ('fullscreen') {
+      <ng-container *ngTemplateOutlet="btnBase; context: {
+        id: 'fullscreen',
+        icon: isFullscreen() ? 'fullscreen-exit' : 'fullscreen',
+        title: isFullscreen() ? 'readerPdf.toolbar.exitFullscreen' : 'readerPdf.toolbar.fullscreen',
+        isOverflow: isOverflow,
+        size: size
+      }"></ng-container>
+    }
+    @case ('overflow') {
+      <ng-container *ngTemplateOutlet="btnBase; context: {
+        id: 'overflow',
+        icon: 'dots-horizontal',
+        title: 'readerPdf.toolbar.moreOptions',
+        size: size
+      }"></ng-container>
+    }
+  }
+</ng-template>
+
+<ng-template #btnBase let-id="id" let-icon="icon" let-title="title" let-active="active" let-pressed="pressed" let-className="className" let-isOverflow="isOverflow" let-size="size">
+  @if (isOverflow) {
+    <button class="overflow-item" [class.active]="active" (click)="performAction(id); closeToolbarOverflow()">
+      <app-reader-icon [name]="icon" [size]="18" />
+      <span>{{ title | transloco }}</span>
+    </button>
+  } @else {
+    <button class="icon-btn" [class]="className" [class.active]="active" [class.bookmarked]="icon === 'bookmark' && active"
+      [title]="title | transloco" [attr.aria-label]="title | transloco"
+      [attr.aria-pressed]="pressed" (click)="performAction(id)">
+      <app-reader-icon [name]="icon" [size]="size" />
+    </button>
+  }
+</ng-template>

@@ -1,0 +1,133 @@
+@use '../../../../shared/styles/settings-shared' as settings;
+
+.settings-card {
+  @include settings.settings-card;
+}
+
+.section-header {
+  @include settings.settings-section-header;
+}
+
+.section-title {
+  @include settings.settings-section-title;
+}
+
+.section-description {
+  @include settings.settings-section-description;
+}
+
+.section-body {
+  @include settings.settings-section-body;
+}
+
+.setting-item {
+  @include settings.settings-item;
+}
+
+.setting-header {
+  @include settings.settings-item-header;
+}
+
+.setting-header-standalone {
+  @include settings.settings-item-header-standalone;
+}
+
+.setting-label {
+  @include settings.settings-label;
+}
+
+.setting-description {
+  @include settings.settings-item-description;
+}
+
+.setting-options {
+  @include settings.settings-options;
+}
+
+.providers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.5469rem;
+
+  @media (width <= 768px) {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4375rem;
+  }
+
+  @media (width <= 400px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.provider-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4375rem;
+  padding: 0.4375rem 0.6563rem;
+  background: var(--color-card);
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 4px;
+  transition: border-color 0.2s ease;
+
+  &:hover {
+    border-color: var(--color-primary);
+  }
+}
+
+.provider-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+}
+
+.provider-label {
+  font-weight: settings.$settings-label-weight;
+  color: var(--color-text);
+  font-size: settings.$settings-description-size;
+}
+
+.max-reviews-control {
+  display: flex;
+  align-items: center;
+  gap: 0.3281rem;
+}
+
+.max-reviews-label {
+  color: var(--p-text-muted-color);
+  font-size: var(--app-text-xs);
+}
+
+.max-reviews-input {
+  width: 2.625rem;
+  padding: 0.2188rem 0.3281rem;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 4px;
+  background: var(--color-card);
+  color: var(--color-text);
+  font-size: settings.$settings-description-size;
+  text-align: center;
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary);
+  }
+}
+
+.no-providers-message {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  color: var(--p-text-muted-color);
+  font-size: settings.$settings-description-size;
+  font-style: italic;
+  margin-top: 0.4375rem;
+  padding: 0.6563rem;
+  background: var(--color-card);
+  border-radius: 4px;
+
+  .pi {
+    color: var(--p-orange-500);
+    flex-shrink: 0;
+  }
+}

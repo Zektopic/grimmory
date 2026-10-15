@@ -1,0 +1,148 @@
+.reading-sessions-container {
+  padding: 0.875rem 0;
+}
+
+.loading-state,
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2.625rem;
+  gap: 0.875rem;
+}
+
+.loading-text {
+  color: var(--text-color-secondary);
+  font-size: 0.7875rem;
+}
+
+.empty-state p {
+  color: var(--text-color-secondary);
+  font-size: var(--app-text-base);
+}
+
+.location-text {
+  font-size: var(--app-text-sm);
+  color: var(--text-color);
+}
+
+.session-time {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1094rem;
+
+  .session-date {
+    font-weight: 500;
+    color: var(--text-color);
+  }
+
+  .session-range {
+    font-size: 0.7rem;
+    color: var(--text-color-secondary);
+  }
+}
+
+.book-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3281rem;
+  padding: 0.2188rem 0.4375rem;
+  border-radius: 0.3281rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+
+  i {
+    font-size: 0.7rem;
+  }
+
+  &.book-type-pdf {
+    color: var(--book-type-pdf-color);
+    background-color: rgb(220 38 38 / 10%);
+  }
+
+  &.book-type-epub {
+    color: var(--book-type-epub-color);
+    background-color: rgb(22 163 74 / 10%);
+  }
+
+  &.book-type-cbx,
+  &.book-type-cbz,
+  &.book-type-cbr,
+  &.book-type-cb7 {
+    color: var(--book-type-cbx-color);
+    background-color: rgb(59 130 246 / 10%);
+  }
+
+  &.book-type-fb2 {
+    color: var(--book-type-fb2-color);
+    background-color: rgb(236 72 153 / 10%);
+  }
+
+  &.book-type-mobi {
+    color: var(--book-type-mobi-color);
+    background-color: rgb(99 102 241 / 10%);
+  }
+
+  &.book-type-azw3 {
+    color: var(--book-type-azw3-color);
+    background-color: rgb(20 184 166 / 10%);
+  }
+
+  &.book-type-audiobook {
+    color: var(--book-type-audiobook-color);
+    background-color: rgb(234 179 8 / 10%);
+  }
+}
+
+.progress-delta-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3281rem;
+  padding: 0.2188rem 0.4375rem;
+  border-radius: 0.3281rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+
+  i {
+    font-size: 0.7rem;
+  }
+
+  &.progress-positive {
+    color: #16a34a;
+    background-color: rgb(22 163 74 / 10%);
+  }
+
+  &.progress-negative {
+    color: #dc2626;
+    background-color: rgb(220 38 38 / 10%);
+  }
+
+  &.progress-neutral {
+    color: var(--text-color-secondary);
+    background-color: rgb(128 128 128 / 10%);
+  }
+}
+
+:host ::ng-deep {
+  .p-datatable {
+    .p-datatable-thead > tr > th {
+      background-color: var(--card-background);
+      color: var(--text-color);
+      font-weight: 600;
+      font-size: var(--app-text-sm);
+      white-space: nowrap;
+      border-color: var(--border-color);
+    }
+
+    .p-datatable-tbody > tr > td {
+      padding: 0.3063rem 0.5687rem;
+      font-size: var(--app-text-sm);
+      border-color: var(--border-color);
+    }
+
+    .p-datatable-wrapper {
+      overflow-x: auto;
+    }
+  }
+}

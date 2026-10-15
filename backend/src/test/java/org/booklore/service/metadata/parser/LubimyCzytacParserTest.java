@@ -1,0 +1,322 @@
+package org.booklore.service.metadata.parser;
+
+import org.booklore.model.dto.Book;
+import org.booklore.model.dto.BookMetadata;
+import org.booklore.model.dto.request.FetchMetadataRequest;
+import org.booklore.model.dto.settings.AppSettings;
+import org.booklore.model.dto.settings.MetadataProviderSettings;
+import org.booklore.service.appsettings.AppSettingService;
+import org.jsoup.Connection;
+import org.jsoup.Jsoup;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.MockedStatic;
+import org.mockito.junit.jupiter.MockitoExtension;
+import tools.jackson.databind.ObjectMapper;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Paths;
+import java.net.ConnectException;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class LubimyCzytacParserTest {
+
+    @Mock
+    private AppSettingService appSettingService;
+
+    private MockedStatic<Jsoup> mockJsoup;
+
+    private LubimyCzytacParser parser;
+
+    private String exampleSearchHtmlFixture;
+
+    private String exampleBookHtmlFixture;
+
+    @BeforeEach
+    void setUp() throws IOException {
+        parser = new LubimyCzytacParser(appSettingService, new ObjectMapper());
+
+        exampleSearchHtmlFixture = readFixture("example-search.html");
+        exampleBookHtmlFixture = readFixture("example-book.html");
+
+        mockJsoup = mockStatic(Jsoup.class);
+
+    }
+
+    @AfterEach
+    void tearDown() {
+        mockJsoup.close();
+    }
+
+    @Test
+    void testFetchMetadata_ProviderDisabled() {
+        // Given
+        Book book = Book.builder()
+            .title("Test Book")
+            .build();
+
+        FetchMetadataRequest request = FetchMetadataRequest.builder()
+            .title("Test Book")
+            .build();
+
+        // Mock disabled provider
+        AppSettings appSettings = new AppSettings();
+        MetadataProviderSettings providerSettings = new MetadataProviderSettings();
+        MetadataProviderSettings.Lubimyczytac lubimyCzytac = new MetadataProviderSettings.Lubimyczytac();
+        lubimyCzytac.setEnabled(false);
+        providerSettings.setLubimyczytac(lubimyCzytac);
+        appSettings.setMetadataProviderSettings(providerSettings);
+
+        when(appSettingService.getAppSettings()).thenReturn(appSettings);
+
+        // When
+        List<BookMetadata> results = parser.fetchMetadata(book, request);
+
+        // Then
+        assertNotNull(results);
+        assertTrue(results.isEmpty(), "Should return empty list when provider is disabled");
+        verify(appSettingService).getAppSettings();
+    }
+
+    @Test
+    void testFetchMetadata_ProviderSettingsNull() {
+        // Given
+        Book book = Book.builder()
+            .title("Test Book")
+            .build();
+
+        FetchMetadataRequest request = FetchMetadataRequest.builder()
+            .title("Test Book")
+            .build();
+
+        // Mock null settings
+        AppSettings appSettings = new AppSettings();
+        appSettings.setMetadataProviderSettings(null);
+
+        when(appSettingService.getAppSettings()).thenReturn(appSettings);
+
+        // When
+        List<BookMetadata> results = parser.fetchMetadata(book, request);
+
+        // Then
+        assertNotNull(results);
+        assertTrue(results.isEmpty(), "Should return empty list when settings are null");
+        verify(appSettingService).getAppSettings();
+    }
+
+    @Test
+    void testFetchMetadata_EmptyQuery() {
+        // Given
+        Book book = Book.builder()
+            .title("Test Book")
+            .build();
+
+        FetchMetadataRequest request = FetchMetadataRequest.builder()
+            .build();
+        // Empty query - no title or ISBN
+
+        // Mock enabled provider
+        AppSettings appSettings = new AppSettings();
+        MetadataProviderSettings providerSettings = new MetadataProviderSettings();
+        MetadataProviderSettings.Lubimyczytac lubimyCzytac = new MetadataProviderSettings.Lubimyczytac();
+        lubimyCzytac.setEnabled(true);
+        providerSettings.setLubimyczytac(lubimyCzytac);
+        appSettings.setMetadataProviderSettings(providerSettings);
+
+        when(appSettingService.getAppSettings()).thenReturn(appSettings);
+
+        // When
+        List<BookMetadata> results = parser.fetchMetadata(book, request);
+
+        // Then
+        assertNotNull(results);
+        assertTrue(results.isEmpty(), "Should return empty list when query is empty");
+        verify(appSettingService).getAppSettings();
+    }
+
+    @Test
+    void testFetchMetadata_parsesBook() throws Exception {
+        // Given
+        Book book = Book.builder()
+            .title("Sklepy cynamonowe")
+            .build();
+
+        FetchMetadataRequest request = FetchMetadataRequest.builder()
+            .title("Sklepy cynamonowe")
+            .author("Bruno Schulz")
+            .build();
+
+        // Mock enabled provider
+        AppSettings appSettings = new AppSettings();
+        MetadataProviderSettings providerSettings = new MetadataProviderSettings();
+        MetadataProviderSettings.Lubimyczytac lubimyCzytac = new MetadataProviderSettings.Lubimyczytac();
+        lubimyCzytac.setEnabled(true);
+        providerSettings.setLubimyczytac(lubimyCzytac);
+        appSettings.setMetadataProviderSettings(providerSettings);
+
+        // Two expected URLs
+        mockResponse("https://lubimyczytac.pl/szukaj/ksiazki", exampleSearchHtmlFixture);
+        mockResponse("https://lubimyczytac.pl/ksiazka/", exampleBookHtmlFixture);
+
+        when(appSettingService.getAppSettings()).thenReturn(appSettings);
+
+        // When
+        List<BookMetadata> results = parser.fetchMetadata(book, request);
+
+        // Then
+        assertNotNull(results);
+        assertFalse(results.isEmpty(), "Should return results for real book");
+
+        BookMetadata result = results.getFirst();
+        assertEquals("Sklepy cynamonowe", result.getTitle());
+        assertNull(result.getIsbn10());
+        assertEquals("9788384258149", result.getIsbn13());
+        assertEquals("5223841", result.getLubimyczytacId());
+        assertNotNull(result.getAuthors());
+        assertEquals(1, result.getAuthors().size());
+        assertEquals("Bruno Schulz", result.getAuthors().getFirst());
+        assertEquals("https://lubimyczytac.pl/ksiazka/5223841/sklepy-cynamonowe", result.getExternalUrl());
+
+        // The description is very long, but we need to make sure we're in the right ballpark.
+        assertEquals("Jedno z najoryginalniejszych", result.getDescription().substring(0, 28));
+        assertEquals(827, result.getDescription().length());
+    }
+
+    @Test
+    void testFetchMetadata_stopsWithRegularException() throws Exception {
+        // Given
+        Book book = Book.builder()
+                .title("Sklepy cynamonowe")
+                .build();
+
+        FetchMetadataRequest request = FetchMetadataRequest.builder()
+                .title("Sklepy cynamonowe")
+                .author("Bruno Schulz")
+                .build();
+
+        // Mock enabled provider
+        AppSettings appSettings = new AppSettings();
+        MetadataProviderSettings providerSettings = new MetadataProviderSettings();
+        MetadataProviderSettings.Lubimyczytac lubimyCzytac = new MetadataProviderSettings.Lubimyczytac();
+        lubimyCzytac.setEnabled(true);
+        providerSettings.setLubimyczytac(lubimyCzytac);
+        appSettings.setMetadataProviderSettings(providerSettings);
+
+        mockResponseThrow("https://lubimyczytac.pl/szukaj/ksiazki", new IOException());
+
+        when(appSettingService.getAppSettings()).thenReturn(appSettings);
+
+        // When
+        List<BookMetadata> results = parser.fetchMetadata(book, request);
+
+        assertEquals(0, results.size());
+        mockJsoup.verify(() -> Jsoup.connect(anyString()), times(1));
+    }
+
+    @Test
+    void testFetchMetadata_retriesWithConnectionException() throws Exception {
+        // Given
+        Book book = Book.builder()
+                .title("Sklepy cynamonowe")
+                .build();
+
+        FetchMetadataRequest request = FetchMetadataRequest.builder()
+                .title("Sklepy cynamonowe")
+                .author("Bruno Schulz")
+                .build();
+
+        // Mock enabled provider
+        AppSettings appSettings = new AppSettings();
+        MetadataProviderSettings providerSettings = new MetadataProviderSettings();
+        MetadataProviderSettings.Lubimyczytac lubimyCzytac = new MetadataProviderSettings.Lubimyczytac();
+        lubimyCzytac.setEnabled(true);
+        providerSettings.setLubimyczytac(lubimyCzytac);
+        appSettings.setMetadataProviderSettings(providerSettings);
+
+        mockResponseThrow("https://lubimyczytac.pl/szukaj/ksiazki", new ConnectException());
+
+        when(appSettingService.getAppSettings()).thenReturn(appSettings);
+
+        // When
+        List<BookMetadata> results = parser.fetchMetadata(book, request);
+
+        assertEquals(0, results.size());
+        mockJsoup.verify(() -> Jsoup.connect(anyString()), times(3));
+    }
+
+    @Test
+    void testFetchMetadata_retriesWithWrappedConnectionException() throws Exception {
+        // Given
+        Book book = Book.builder()
+                .title("Sklepy cynamonowe")
+                .build();
+
+        FetchMetadataRequest request = FetchMetadataRequest.builder()
+                .title("Sklepy cynamonowe")
+                .author("Bruno Schulz")
+                .build();
+
+        // Mock enabled provider
+        AppSettings appSettings = new AppSettings();
+        MetadataProviderSettings providerSettings = new MetadataProviderSettings();
+        MetadataProviderSettings.Lubimyczytac lubimyCzytac = new MetadataProviderSettings.Lubimyczytac();
+        lubimyCzytac.setEnabled(true);
+        providerSettings.setLubimyczytac(lubimyCzytac);
+        appSettings.setMetadataProviderSettings(providerSettings);
+
+        mockResponseThrow("https://lubimyczytac.pl/szukaj/ksiazki", new IOException("Wrapped", new ConnectException()));
+
+        when(appSettingService.getAppSettings()).thenReturn(appSettings);
+
+        // When
+        List<BookMetadata> results = parser.fetchMetadata(book, request);
+
+        assertEquals(0, results.size());
+        mockJsoup.verify(() -> Jsoup.connect(anyString()), times(3));
+    }
+
+    private String readFixture(String fixtureName) throws IOException {
+        String filename = Paths.get("lubimyczytac", fixtureName + ".fixture").toString();
+
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream(filename)) {
+            assert is != null;
+
+            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private void mockResponseThrow(String urlPrefix, Throwable exception) throws Exception {
+        Connection mockConnection = mock(Connection.class);
+
+        when(mockConnection.userAgent(any())).thenReturn(mockConnection);
+        when(mockConnection.timeout(anyInt())).thenReturn(mockConnection);
+
+        when(mockConnection.get()).thenThrow(exception);
+
+        mockJsoup.when(() -> Jsoup.connect(startsWith(urlPrefix))).thenReturn(mockConnection);
+    }
+
+    private void mockResponse(String urlPrefix, String response) throws Exception {
+        Connection mockConnection = mock(Connection.class);
+
+        when(mockConnection.userAgent(any())).thenReturn(mockConnection);
+        when(mockConnection.timeout(anyInt())).thenReturn(mockConnection);
+
+        // There may be a better way to get the parse to work here.
+        // However, this was the quickest and simplest way I could find.
+        mockJsoup.when(() -> Jsoup.parse(response)).thenCallRealMethod();
+
+        when(mockConnection.get()).thenAnswer(i -> Jsoup.parse(response));
+
+        mockJsoup.when(() -> Jsoup.connect(startsWith(urlPrefix))).thenReturn(mockConnection);
+    }
+}

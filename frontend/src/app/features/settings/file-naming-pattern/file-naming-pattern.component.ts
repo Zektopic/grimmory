@@ -1,0 +1,158 @@
+import {Component, DestroyRef, effect, inject, signal} from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+import {FormsModule} from '@angular/forms';
+import {Button} from '@openng/optimus-ui/button';
+import {MessageService} from '@openng/optimus-ui/api';
+import {AppSettingsService} from '../../../shared/service/app-settings.service';
+import {forkJoin, of} from 'rxjs';
+import {AppSettingKey} from '../../../shared/model/app-settings.model';
+import {catchError} from 'rxjs/operators';
+import {Library} from '../../book/model/library.model';
+import {LibraryService} from '../../book/service/library.service';
+import {InputText} from '@openng/optimus-ui/inputtext';
+import {Tooltip} from '@openng/optimus-ui/tooltip';
+import {ExternalDocLinkComponent} from '../../../shared/components/external-doc-link/external-doc-link.component';
+import {TranslocoDirective, TranslocoPipe, TranslocoService} from '@jsverse/transloco';
+import {replacePlaceholders} from '../../../shared/util/pattern-resolver';
+
+@Component({
+  selector: 'app-file-naming-pattern',
+  templateUrl: './file-naming-pattern.component.html',
+  standalone: true,
+  imports: [FormsModule, Button, InputText, Tooltip, ExternalDocLinkComponent, TranslocoDirective, TranslocoPipe],
+  styleUrls: ['./file-naming-pattern.component.scss'],
+})
+export class FileNamingPatternComponent {
+  readonly exampleMetadata: Record<string, string> = {
+    title: "The Name of the Wind",
+    subtitle: "Special Edition",
+    authors: "Patrick Rothfuss",
+    year: "2007",
+    series: "The Kingkiller Chronicle",
+    seriesIndex: "01",
+    language: "English",
+    publisher: "DAW Books",
+    isbn: "9780756404741",
+  };
+
+  defaultErrorMessage = '';
+
+  private appSettingsService = inject(AppSettingsService);
+  private messageService = inject(MessageService);
+  private libraryService = inject(LibraryService);
+  private t = inject(TranslocoService);
+  private destroyRef = inject(DestroyRef);
+
+  private readonly hasUserEditedDefaultPattern = signal(false);
+  readonly defaultPattern = signal('');
+
+  private readonly syncDefaultPatternEffect = effect(() => {
+    const uploadPattern = this.appSettingsService.appSettings()?.uploadPattern ?? '';
+    if (this.hasUserEditedDefaultPattern()) {
+      return;
+    }
+
+    this.defaultPattern.set(uploadPattern);
+    this.defaultErrorMessage = this.getDefaultPatternError(uploadPattern);
+  });
+
+  get libraries(): Library[] {
+    return this.libraryService.libraries();
+  }
+
+  private resolvePattern(pattern: string, values: Record<string, string>): string {
+    return replacePlaceholders(pattern, values);
+  }
+
+  private appendExtensionIfMissing(path: string, ext = '.pdf'): string {
+    const lastSegment = path.split('/').pop() ?? '';
+    const hasExtension = /\.[a-z0-9]{2,5}$/i.test(lastSegment);
+    return hasExtension ? path : path + ext;
+  }
+
+  private generatePreview(pattern: string): string {
+    let path = this.resolvePattern(pattern || '', this.exampleMetadata);
+
+    if (!path) return '/original_filename.pdf';
+    if (path.endsWith('/')) return path + 'original_filename.pdf';
+    if (path.includes('{originalFilename}')) {
+      path = path.replace('{originalFilename}', 'original_filename.pdf');
+      return path.startsWith('/') ? path : `/${path}`;
+    }
+    path = this.appendExtensionIfMissing(path);
+    return path.startsWith('/') ? path : `/${path}`;
+  }
+
+  generateDefaultPreview(): string {
+    return this.generatePreview(this.defaultPattern());
+  }
+
+  generateLibraryPreview(library: Library): string {
+    return this.generatePreview(library.fileNamingPattern || this.defaultPattern());
+  }
+
+  validatePattern(pattern: string): boolean {
+    const validPatternRegex = /^[\w\s\-{}[/().<>.,:'"#|\]]*$/;
+    return validPatternRegex.test(pattern);
+  }
+
+  onDefaultPatternChange(pattern: string): void {
+    this.hasUserEditedDefaultPattern.set(true);
+    this.defaultPattern.set(pattern);
+    this.defaultErrorMessage = this.getDefaultPatternError(pattern);
+  }
+
+  onLibraryPatternChange(_library: Library): void {
+    void _library;
+    // Optionally add per-library validation here
+  }
+
+  clearLibraryPattern(library: Library): void {
+    library.fileNamingPattern = '';
+  }
+
+  savePatterns(): void {
+    if (this.defaultErrorMessage) {
+      this.showMessage('error', this.t.translate('common.error'), this.t.translate('settingsNaming.defaultPattern.invalidError'));
+      return;
+    }
+    this.appSettingsService
+      .saveSettings([
+        {key: AppSettingKey.UPLOAD_FILE_PATTERN, newValue: this.defaultPattern()},
+      ])
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.hasUserEditedDefaultPattern.set(false);
+          this.showMessage('success', this.t.translate('common.success'), this.t.translate('settingsNaming.defaultPattern.saveSuccess'));
+        },
+        error: () => this.showMessage('error', this.t.translate('common.error'), this.t.translate('settingsNaming.defaultPattern.saveError')),
+      });
+  }
+
+  saveLibraryPatterns(): void {
+    const patchRequests = this.libraries.map(library =>
+      this.libraryService.updateLibraryFileNamingPattern(library.id!, library.fileNamingPattern || '').pipe(
+        catchError(() => of(null))
+      )
+    );
+    forkJoin(patchRequests).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(results => {
+      const failures = results.filter(result => result === null);
+      if (failures.length === 0) {
+        this.showMessage('success', this.t.translate('common.success'), this.t.translate('settingsNaming.libraryOverrides.saveSuccess'));
+      } else {
+        this.showMessage('error', this.t.translate('common.error'), this.t.translate('settingsNaming.libraryOverrides.saveError', {count: failures.length}));
+      }
+    });
+  }
+
+  private showMessage(severity: 'success' | 'error', summary: string, detail: string): void {
+    this.messageService.add({severity, summary, detail});
+  }
+
+  private getDefaultPatternError(pattern: string): string {
+    return this.validatePattern(pattern) ? '' : this.t.translate('settingsNaming.defaultPattern.invalidChars');
+  }
+}

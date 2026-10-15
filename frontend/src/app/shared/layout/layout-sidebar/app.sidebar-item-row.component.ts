@@ -1,0 +1,71 @@
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { Tooltip } from '@openng/optimus-ui/tooltip';
+import { TranslocoPipe } from '@jsverse/transloco';
+import { LucideEllipsisVertical } from '@lucide/angular';
+import { IconSelection, toIconSelection } from '../../icons/icon-selection';
+
+import { IconDisplayComponent } from '../../components/icon-display/icon-display.component';
+import { LayoutService } from '../layout.service';
+import { SidebarLeaf } from '../navigation/nav-item.model';
+import {LibraryShelfMenuComponent} from '../../../features/book/components/library-shelf-menu/library-shelf-menu.component';
+import {AppMenuTriggerDirective} from '../../ui/menu/app-menu-trigger.directive';
+
+@Component({
+  // Attribute selector so the row renders into its host <li> inside a <ul>.
+  // eslint-disable-next-line @angular-eslint/component-selector
+  selector: '[appSidebarItemRow]',
+  templateUrl: './app.sidebar-item-row.component.html',
+  styleUrls: ['./app.sidebar-item-row.component.scss'],
+  imports: [
+    RouterLink,
+    LibraryShelfMenuComponent,
+    AppMenuTriggerDirective,
+    IconDisplayComponent,
+    Tooltip,
+    TranslocoPipe,
+    LucideEllipsisVertical,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class AppSidebarItemRowComponent {
+  readonly item = input.required<SidebarLeaf>();
+  readonly index = input.required<number>();
+  readonly parentKey = input.required<string>();
+
+  readonly menuOpen = signal(false);
+  readonly key = computed(() => `${this.parentKey()}-${this.index()}`);
+
+  readonly layoutService = inject(LayoutService);
+
+  readonly isRouteActive = computed(() => {
+    const route = this.item().routerLink?.[0];
+    if (!route) return false;
+    return this.layoutService.currentPath() === route;
+  });
+
+  runAction(event: Event): void {
+    event.preventDefault();
+    this.item().action?.();
+  }
+
+  markContextMenuOpen(): void {
+    this.menuOpen.set(true);
+  }
+
+  closeContextMenu(): void {
+    this.menuOpen.set(false);
+  }
+
+  getIconSelection(): IconSelection | null {
+    const item = this.item();
+    if (!item.icon) return null;
+    return toIconSelection(item.icon, item.iconType);
+  }
+
+  formatCount(count: number | null | undefined): string {
+    if (!count) return '';
+    if (count >= 1000) return Math.floor(count / 100) / 10 + 'K';
+    return count.toString();
+  }
+}

@@ -1,0 +1,246 @@
+@use '../../shared/styles/reader-chrome' as *;
+
+.popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99998;
+  background: transparent;
+}
+
+@media (pointer: coarse) {
+  .popup-backdrop {
+    pointer-events: none;
+  }
+}
+
+.text-selection-popup {
+  @include surface;
+
+  position: fixed;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 30%), 0 0 1px rgb(0 0 0 / 20%);
+  z-index: 99999;
+  transform: translateX(-50%);
+  animation: popup-fade-in 0.15s ease-out;
+
+  &.show-below {
+    animation: popup-fade-in-below 0.15s ease-out;
+  }
+}
+
+@keyframes popup-fade-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes popup-fade-in-below {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: color-mix(in srgb, var(--color-white) 80%, transparent);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+
+  &:hover {
+    background: color-mix(in srgb, var(--color-white) 10%, transparent);
+    color: var(--color-white);
+  }
+
+  &.active {
+    background: color-mix(in srgb, var(--color-white) 12%, transparent);
+    color: var(--color-white);
+  }
+
+  svg {
+    flex-shrink: 0;
+  }
+
+  .chevron {
+    margin-left: -2px;
+    transition: transform 0.2s ease;
+
+    &.open {
+      transform: rotate(180deg);
+    }
+  }
+}
+
+.delete-btn {
+  &:hover {
+    background: color-mix(in srgb, var(--color-red-500) 15%, transparent);
+    color: var(--color-red-500);
+  }
+}
+
+.divider {
+  width: 1px;
+  height: 20px;
+  background: color-mix(in srgb, var(--color-white) 10%, transparent);
+  margin: 0 2px;
+}
+
+.annotation-container {
+  position: relative;
+}
+
+.annotation-options {
+  @include surface;
+
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px;
+  border: 1px solid var(--reader-chrome-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+  z-index: 100000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  &.above {
+    bottom: calc(100% + 8px);
+    animation: slide-up 0.15s ease-out;
+  }
+
+  &.below {
+    top: calc(100% + 8px);
+    animation: slide-down 0.15s ease-out;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.style-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.style-btn {
+  width: 32px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--color-white) 10%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-white) 3%, transparent);
+  color: color-mix(in srgb, var(--color-white) 70%, transparent);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+
+  .style-text {
+    display: block;
+  }
+
+  &.highlight-style .style-text {
+    background: linear-gradient(180deg, rgb(255 255 0 / 40%) 60%, transparent 60%);
+  }
+
+  &.underline-style .style-text {
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+  }
+
+  &.squiggly-style .style-text {
+    text-decoration: underline wavy;
+  }
+
+  &.strikethrough-style .style-text {
+    text-decoration: line-through;
+  }
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--color-white) 20%, transparent);
+    background: var(--reader-chrome-hover);
+    color: var(--color-white);
+  }
+
+  &.selected {
+    border-color: var(--reader-chrome-accent);
+    background: color-mix(in srgb, var(--reader-chrome-accent) 15%, transparent);
+    color: var(--color-white);
+  }
+}
+
+.color-buttons {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.color-btn {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background: var(--color);
+  cursor: pointer;
+  transition: border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+
+  &:hover {
+    transform: scale(1.1);
+  }
+
+  &.selected {
+    border-color: var(--color-white);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--reader-chrome-accent) 50%, transparent);
+  }
+}

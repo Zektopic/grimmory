@@ -1,0 +1,176 @@
+@use "../layout/styles/layout/variables";
+
+/*
+ * Document defaults.
+ *
+ * This file owns browser-level app defaults: body canvas, baseline typography,
+ * links, scrollbars, and user preference handling.
+ * Page structure belongs in page.scss; component styling belongs with the
+ * component.
+ */
+
+html {
+  --mobile-shell-active: 0;
+
+  background-color: var(--color-page);
+  font-family: var(--font-family);
+  font-size: var(--font-size-root);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--color-app);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: var(--app-text-base);
+}
+
+picture,
+canvas,
+svg {
+  max-width: 100%;
+  height: auto;
+}
+
+picture {
+  display: block;
+}
+
+@media #{variables.$mobile-shell-media-query} {
+  html {
+    --mobile-shell-active: 1;
+  }
+
+  html,
+  body {
+    background-color: var(--color-page);
+  }
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+button,
+[role="button"] {
+  cursor: pointer;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 1.3125rem 0 0.875rem;
+  color: var(--color-text-strong);
+  font-weight: 500;
+  line-height: 1.2;
+  text-wrap: balance;
+  overflow-wrap: break-word;
+
+  &:first-child {
+    margin-top: 0;
+  }
+}
+
+h1 {
+  font-size: var(--text-4xl);
+}
+
+h2 {
+  font-size: var(--text-3xl);
+}
+
+h3 {
+  font-size: var(--text-2xl);
+}
+
+h4 {
+  font-size: var(--text-xl);
+}
+
+h5 {
+  font-size: var(--text-lg);
+}
+
+h6 {
+  font-size: var(--text-sm);
+}
+
+p {
+  margin: 0 0 0.875rem;
+  color: var(--color-text);
+  line-height: 1.5;
+  text-wrap: pretty;
+  overflow-wrap: break-word;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+p.p-secondary {
+  color: var(--color-text-secondary);
+}
+
+li,
+figcaption,
+blockquote {
+  text-wrap: pretty;
+}
+
+mark {
+  padding: 0.2188rem 0.35rem;
+  border-radius: var(--radius-lg);
+  background: #fff8e1;
+  font-family: monospace;
+}
+
+blockquote {
+  margin: 0.875rem 0;
+  padding: 0 1.75rem;
+  border-left: 4px solid #90a4ae;
+}
+
+hr {
+  margin: 0.875rem 0;
+  border-top: solid var(--color-border);
+  border-width: 1px 0 0;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(128 128 128 / 50%) rgb(0 0 0 / 10%);
+
+  &::-webkit-scrollbar {
+    width: 12px;
+  }
+
+  &::-webkit-scrollbar-track {
+    border-radius: 10px;
+    background: rgb(0 0 0 / 10%);
+  }
+
+  &::-webkit-scrollbar-thumb {
+    border-radius: 10px;
+    background: rgb(128 128 128 / 50%);
+
+    &:hover {
+      background: rgb(128 128 128 / 70%);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,15 +1,22 @@
 .git
 .github
-.idea
-.vscode
-.angular
+assets
+deploy
+docs
+scratch
+node_modules
+.pnpm-store
+pnpm-debug.log
+tools/*
+!tools/release/
+tools/release/*
+!tools/release/package.json
 
-booklore-ui/node_modules
-booklore-ui/dist
-booklore-ui/.angular
-booklore-ui/test-results
+frontend/.angular
+frontend/dist
+frontend/node_modules
+frontend/test-results
+frontend/tmp
 
-booklore-api/build/reports
-booklore-api/build/test-results
-
-*.md
+backend/.gradle
+backend/build

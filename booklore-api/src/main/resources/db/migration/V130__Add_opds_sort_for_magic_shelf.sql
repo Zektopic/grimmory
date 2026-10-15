@@ -1,1 +1,0 @@
-ALTER TABLE magic_shelf ADD COLUMN IF NOT EXISTS opds_sort VARCHAR(20) NULL;

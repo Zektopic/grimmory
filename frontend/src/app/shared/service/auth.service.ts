@@ -1,0 +1,267 @@
+import { computed, inject, Injectable, Injector, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable, tap, finalize, of, throwError } from 'rxjs';
+import { catchError, map, shareReplay } from 'rxjs/operators';
+import { RxStompService } from '../websocket/rx-stomp.service';
+import { API_CONFIG } from '../../core/config/api-config';
+import { createRxStompConfig } from '../websocket/rx-stomp.config';
+import { Router } from '@angular/router';
+import { PostLoginInitializerService } from '../../core/services/post-login-initializer.service';
+
+interface AccessTokenResponse {
+  accessToken: string;
+  refreshToken: string;
+  isDefaultPassword?: boolean;
+  expires?: number;
+}
+
+export class StaleRefreshResponseError extends Error {
+  constructor() {
+    super('Refresh response belongs to a stale session');
+  }
+}
+
+@Injectable({
+  providedIn: 'root',
+})
+export class AuthService {
+
+  private apiUrl = `${API_CONFIG.BASE_URL}/api/v1/auth`;
+  private rxStompService?: RxStompService;
+  private readonly _postLoginInitialized = signal(false);
+  readonly postLoginInitialized = this._postLoginInitialized.asReadonly();
+  private readonly _logoutInProgress = signal(false);
+  readonly logoutInProgress = this._logoutInProgress.asReadonly();
+  private refreshSessionRequest$?: Observable<AccessTokenResponse>;
+
+  private http = inject(HttpClient);
+  private injector = inject(Injector);
+  private router = inject(Router);
+  private postLoginInitializer = inject(PostLoginInitializerService);
+
+  readonly token = signal<string | null>(this.getInternalAccessToken());
+  readonly isAuthenticated = computed(() => !!this.token());
+
+  internalLogin(credentials: { username: string; password: string }): Observable<AccessTokenResponse> {
+    return this.http.post<AccessTokenResponse>(`${this.apiUrl}/login`, credentials).pipe(
+      tap((response) => {
+        this.saveInternalTokenResponse(response);
+        this.initializeWebSocketConnection();
+        this.handleSuccessfulAuth();
+      })
+    );
+  }
+
+  private internalRefreshToken(refreshToken: string): Observable<AccessTokenResponse> {
+    return this.http.post<AccessTokenResponse>(`${this.apiUrl}/refresh`, { refreshToken }).pipe(
+      tap((response) => {
+        this.saveInternalTokenResponse(response, refreshToken);
+      })
+    );
+  }
+
+  ensureAccessToken(options: {forceRefresh?: boolean} = {}): Observable<string> {
+    if (!options.forceRefresh && this.hasCurrentAccessToken()) {
+      return of(this.getInternalAccessToken()!);
+    }
+
+    return this.refreshInternalSession().pipe(
+      map(response => response.accessToken),
+      catchError(error => {
+        if (error instanceof StaleRefreshResponseError && this.hasCurrentAccessToken()) {
+          return of(this.getInternalAccessToken()!);
+        }
+
+        return throwError(() => error);
+      })
+    );
+  }
+
+  refreshInternalSession(): Observable<AccessTokenResponse> {
+    if (!this.getInternalRefreshToken()) {
+      return throwError(() => new Error('No refresh token available'));
+    }
+
+    if (!this.refreshSessionRequest$) {
+      const refreshToken = this.getInternalRefreshToken();
+      if (!refreshToken) {
+        return throwError(() => new Error('No refresh token available'));
+      }
+
+      this.refreshSessionRequest$ = this.internalRefreshToken(refreshToken).pipe(
+        tap(() => this.initializeWebSocketConnection()),
+        finalize(() => {
+          this.refreshSessionRequest$ = undefined;
+        }),
+        shareReplay({bufferSize: 1, refCount: false})
+      );
+    }
+
+    return this.refreshSessionRequest$;
+  }
+
+  ensureAuthenticated(): Observable<boolean> {
+    return this.ensureAccessToken().pipe(
+      map(() => true),
+      catchError(() => {
+        if (this.getInternalAccessToken() || this.getInternalRefreshToken()) {
+          this.clearSession();
+        }
+        return of(false);
+      })
+    );
+  }
+
+  remoteLogin(): Observable<AccessTokenResponse> {
+    return this.http.get<AccessTokenResponse>(`${this.apiUrl}/remote`).pipe(
+      tap((response) => {
+        this.saveInternalTokenResponse(response);
+        this.initializeWebSocketConnection();
+        this.handleSuccessfulAuth();
+      })
+    );
+  }
+
+  saveInternalTokens(accessToken: string, refreshToken: string, accessTokenExpiry: number = 3600, isDefaultPassword: boolean = false): void {
+
+    localStorage.setItem('accessToken_Internal', accessToken);
+    localStorage.setItem('accessToken_Internal_Expiry', (Date.now() + (accessTokenExpiry * 1000)).toString());
+    localStorage.setItem('refreshToken_Internal', refreshToken);
+    localStorage.setItem('authenticationIsDefaultPassword_Internal', isDefaultPassword ? 'true' : 'false')
+    this.token.set(accessToken);
+  }
+
+  private saveInternalTokenResponse(response: AccessTokenResponse, expectedRefreshToken?: string): void {
+    if (expectedRefreshToken !== undefined && expectedRefreshToken !== this.getInternalRefreshToken()) {
+      throw new StaleRefreshResponseError();
+    }
+
+    if (!response.accessToken || !response.refreshToken) {
+      this.clearSession();
+      throw new Error('Authentication response did not include a complete token pair');
+    }
+
+    this.saveInternalTokens(response.accessToken, response.refreshToken, response.expires, response.isDefaultPassword);
+  }
+
+  getIsDefaultPassword(): boolean {
+    const isDefaultPassword = localStorage.getItem('authenticationIsDefaultPassword_Internal') ?? 'false';
+    return isDefaultPassword === 'true';
+  }
+
+  getInternalAccessTokenExpiry(): number | null {
+    const expiry = Number.parseInt(localStorage.getItem('accessToken_Internal_Expiry') ?? '');
+    return Number.isNaN(expiry) ? null : expiry;
+  }
+
+  getInternalAccessToken(): string | null {
+    return localStorage.getItem('accessToken_Internal');
+  }
+
+  getInternalRefreshToken(): string | null {
+    return localStorage.getItem('refreshToken_Internal');
+  }
+
+  hasCurrentAccessToken(): boolean {
+    const accessToken = this.getInternalAccessToken();
+    if (!accessToken) {
+      return false;
+    }
+
+    const expiry = this.getInternalAccessTokenExpiry();
+    return expiry == null || expiry > Date.now();
+  }
+
+  logout(): void {
+    if (this._logoutInProgress()) return;
+    this._logoutInProgress.set(true);
+
+    const refreshToken = this.getInternalRefreshToken();
+    this.http.post<{ logoutUrl: string | null }>(`${this.apiUrl}/logout`, { refreshToken })
+      .pipe(finalize(() => {
+        this._logoutInProgress.set(false);
+      }))
+      .subscribe({
+        next: (response) => {
+          this.clearSession();
+
+          if (response.logoutUrl) {
+            this.redirectTo(response.logoutUrl, true);
+          } else {
+            this.redirectTo('/login', true);
+          }
+        },
+        error: () => {
+          this.clearSession();
+
+          this.redirectTo('/login', true);
+        }
+      });
+  }
+
+  forceLogout(reason: string): void {
+    this._logoutInProgress.set(true);
+    this.clearSession();
+    this.redirectTo(`/login?reason=${encodeURIComponent(reason)}`, true);
+  }
+
+  protected redirectTo(url: string, replace = false): void {
+    if (replace) {
+      window.location.replace(url);
+    } else {
+      window.location.href = url;
+    }
+  }
+
+  clearSessionOnLoginPage(): void {
+    this.clearSession();
+  }
+
+  private clearSession(): void {
+    this.refreshSessionRequest$ = undefined;
+    localStorage.removeItem('accessToken_Internal');
+    localStorage.removeItem('accessToken_Internal_Expiry');
+    localStorage.removeItem('refreshToken_Internal');
+    localStorage.removeItem('authenticationIsDefaultPassword_Internal');
+
+    this.token.set(null);
+    this._postLoginInitialized.set(false);
+    this.getRxStompService().deactivate();
+  }
+
+  getRxStompService(): RxStompService {
+    if (!this.rxStompService) {
+      this.rxStompService = this.injector.get(RxStompService);
+    }
+    return this.rxStompService;
+  }
+
+  initializeWebSocketConnection(): void {
+    if (!this.hasCurrentAccessToken()) return;
+
+    const token = this.getInternalAccessToken();
+    if (!token) return;
+
+    const stompService = this.getRxStompService();
+    const config = createRxStompConfig(this);
+    stompService.updateConfig(config);
+    stompService.activate();
+
+    if (!this._postLoginInitialized()) {
+      this.handleSuccessfulAuth();
+    }
+  }
+
+  private handleSuccessfulAuth() {
+    if (this._postLoginInitialized()) return;
+    this._postLoginInitialized.set(true);
+    this.postLoginInitializer.initialize().subscribe({
+      next: () => console.log('AuthService: Post-login initialization completed'),
+      error: (err) => console.error('AuthService: Post-login initialization failed:', err)
+    });
+  }
+}
+
+export function websocketInitializer(authService: AuthService): () => void {
+  return () => authService.initializeWebSocketConnection();
+}

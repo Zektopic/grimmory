@@ -1,0 +1,26 @@
+<ng-container *transloco="let t; prefix: 'bookdrop.filesWidget'">
+<div class="staging-border">
+  <div class="widget-row">
+
+    <div class="widget-info">
+      <p class="widget-title">{{ t('title') }}</p>
+      <p class="widget-count">{{ pendingCount() }}</p>
+      @if (lastUpdatedAt(); as updatedAt) {
+        <p class="widget-date">
+          {{ t('lastUpdated') }} {{ updatedAt | date: 'short' }}
+        </p>
+      }
+    </div>
+
+    <div class="widget-actions">
+      <p-button
+        size="small"
+        outlined
+        severity="info"
+        (click)="openReviewDialog()">
+        {{ t('reviewBtn') }}
+      </p-button>
+    </div>
+  </div>
+</div>
+</ng-container>

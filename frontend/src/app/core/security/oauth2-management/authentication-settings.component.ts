@@ -1,0 +1,511 @@
+import {HttpErrorResponse} from '@angular/common/http';
+import {Component, effect, inject, signal, WritableSignal} from '@angular/core';
+import {FormsModule} from '@angular/forms';
+import {InputText} from '@openng/optimus-ui/inputtext';
+import {Button} from '@openng/optimus-ui/button';
+import {Checkbox} from '@openng/optimus-ui/checkbox';
+import {ToggleSwitch} from '@openng/optimus-ui/toggleswitch';
+import {InputNumber} from '@openng/optimus-ui/inputnumber';
+import {MessageService} from '@openng/optimus-ui/api';
+import {AppSettingsService} from '../../../shared/service/app-settings.service';
+import {AppSettingKey, AppSettings, OidcProviderDetails, OidcTestResult} from '../../../shared/model/app-settings.model';
+import {MultiSelect} from '@openng/optimus-ui/multiselect';
+import {LibraryService} from '../../../features/book/service/library.service';
+import {ExternalDocLinkComponent} from '../../../shared/components/external-doc-link/external-doc-link.component';
+import {TranslocoDirective, TranslocoPipe, TranslocoService} from '@jsverse/transloco';
+import {OidcGroupMapping} from '../../../shared/model/oidc-group-mapping.model';
+import {OidcGroupMappingService} from '../../../shared/service/oidc-group-mapping.service';
+import {Select} from '@openng/optimus-ui/select';
+import {TableModule} from '@openng/optimus-ui/table';
+import {Dialog} from '@openng/optimus-ui/dialog';
+import {TagComponent} from '../../../shared/components/tag/tag.component';
+import {Chip} from '@openng/optimus-ui/chip';
+
+@Component({
+  selector: 'app-authentication-settings',
+  templateUrl: './authentication-settings.component.html',
+  standalone: true,
+  imports: [
+    FormsModule,
+    InputText,
+    Checkbox,
+    ToggleSwitch,
+    Button,
+    MultiSelect,
+    InputNumber,
+    ExternalDocLinkComponent,
+    TranslocoDirective,
+    TranslocoPipe,
+    Select,
+    TableModule,
+    Dialog,
+    TagComponent,
+    Chip
+  ],
+  styleUrls: ['./authentication-settings.component.scss']
+})
+export class AuthenticationSettingsComponent {
+  readonly defaultMobileRedirectUri = 'grimmory://oauth2-callback';
+  readonly wildcardMobileRedirectUri = '*';
+  availablePermissions = [
+    {label: 'Upload Books', value: 'permissionUpload', selected: false, translationKey: 'perms.uploadBooks'},
+    {label: 'Download Books', value: 'permissionDownload', selected: false, translationKey: 'perms.downloadBooks'},
+    {label: 'Delete Books', value: 'permissionDeleteBook', selected: false, translationKey: 'perms.deleteBooks'},
+    {label: 'Manage Library', value: 'permissionManageLibrary', selected: false, translationKey: 'perms.manageLibrary'},
+    {label: 'Email Books', value: 'permissionEmailBook', selected: false, translationKey: 'perms.emailBooks'},
+    {label: 'Access Bookdrop', value: 'permissionAccessBookdrop', selected: false, translationKey: 'perms.accessBookdrop'},
+    {label: 'View Library Statistics', value: 'permissionAccessLibraryStats', selected: false, translationKey: 'perms.viewLibraryStats'},
+    {label: 'View User Reading Statistics', value: 'permissionAccessUserStats', selected: false, translationKey: 'perms.viewUserStats'},
+    {label: 'Manage Metadata Configuration', value: 'permissionManageMetadataConfig', selected: false, translationKey: 'perms.manageMetadataConfig'},
+    {label: 'Manage Application Preferences', value: 'permissionManageGlobalPreferences', selected: false, translationKey: 'perms.manageAppPreferences'},
+    {label: 'Access Task Manager', value: 'permissionAccessTaskManager', selected: false, translationKey: 'perms.accessTaskManager'},
+    {label: 'Manage Icons', value: 'permissionManageIcons', selected: false, translationKey: 'perms.manageIcons'},
+    {label: 'Manage Fonts', value: 'permissionManageFonts', selected: false, translationKey: 'perms.manageFonts'},
+    {label: 'Edit Single Metadata', value: 'permissionEditMetadata', selected: false, translationKey: 'perms.editSingleMetadata'},
+    {label: 'Bulk Auto Fetch Metadata', value: 'permissionBulkAutoFetchMetadata', selected: false, translationKey: 'perms.bulkAutoFetch'},
+    {label: 'Bulk Custom Fetch Metadata', value: 'permissionBulkCustomFetchMetadata', selected: false, translationKey: 'perms.bulkCustomFetch'},
+    {label: 'Access Bulk Metadata Editor', value: 'permissionBulkEditMetadata', selected: false, translationKey: 'perms.accessBulkEditor'},
+    {label: 'Bulk Regenerate Cover', value: 'permissionBulkRegenerateCover', selected: false, translationKey: 'perms.bulkRegenerateCover'},
+    {label: 'Move/Organize Files', value: 'permissionMoveOrganizeFiles', selected: false, translationKey: 'perms.moveOrganize'},
+    {label: 'Bulk Lock/Unlock Metadata', value: 'permissionBulkLockUnlockMetadata', selected: false, translationKey: 'perms.bulkLockUnlock'},
+    {label: 'KOReader Sync', value: 'permissionSyncKoreader', selected: false, translationKey: 'perms.koreaderSync'},
+    {label: 'Kobo Sync', value: 'permissionSyncKobo', selected: false, translationKey: 'perms.koboSync'},
+    {label: 'OPDS Feed Access', value: 'permissionAccessOpds', selected: false, translationKey: 'perms.opdsFeedAccess'},
+    {label: 'Bulk Reset Grimmory Read Progress', value: 'permissionBulkResetBookloreReadProgress', selected: false, translationKey: 'perms.bulkResetGrimmory'},
+    {label: 'Bulk Reset KoReader Read Progress', value: 'permissionBulkResetKoReaderReadProgress', selected: false, translationKey: 'perms.bulkResetKoreader'},
+    {label: 'Bulk Reset Book Read Status', value: 'permissionBulkResetBookReadStatus', selected: false, translationKey: 'perms.bulkResetReadStatus'},
+  ];
+
+  internalAuthEnabled = true;
+  autoUserProvisioningEnabled = false;
+  allowLocalAccountLinking = true;
+  selectedPermissions: string[] = [];
+  oidcEnabled = false;
+
+  editingLibraryIds: number[] = [];
+  sessionDurationHours: number | null = null;
+  backchannelLogoutUri = `${window.location.origin}/api/v1/auth/oidc/backchannel-logout`;
+  oidcForceOnlyMode = false;
+  mobileRedirectUris: string[] = [this.defaultMobileRedirectUri];
+  mobileRedirectUriInput = '';
+
+  infoItems = [
+    {labelKey: 'infoPanel.redirectUri', value: `${window.location.origin}/oauth2-callback`},
+    {labelKey: 'infoPanel.postLogoutRedirectUri', value: `${window.location.origin}/login`},
+    {labelKey: 'infoPanel.backChannelLogoutUri', value: `${window.location.origin}/api/v1/auth/oidc/backchannel-logout`},
+    {labelKey: 'infoPanel.requiredScopes', value: 'openid profile email groups offline_access'},
+    {labelKey: 'infoPanel.pkceMethod', value: 'S256'},
+    {labelKey: 'infoPanel.grantType', value: 'Authorization Code'},
+  ];
+
+  // Test connection
+  readonly isTestingConnection = signal(false);
+  readonly testConnectionResult: WritableSignal<OidcTestResult | null> = signal(null);
+  readonly showTestDetails = signal(false);
+
+  // Group mapping
+  readonly groupSyncMode = signal('DISABLED');
+  groupSyncModeOptions = [
+    {label: 'Disabled', value: 'DISABLED'},
+    {label: 'On Login (Replace)', value: 'ON_LOGIN'},
+    {label: 'On Login (Additive)', value: 'ON_LOGIN_ADDITIVE'}
+  ];
+  readonly groupMappings = signal<OidcGroupMapping[]>([]);
+  readonly groupMappingDraft = signal<OidcGroupMapping | null>(null);
+
+  oidcProviderClientSecret: string = '';
+
+  oidcProvider: OidcProviderDetails = {
+    providerName: '',
+    clientId: '',
+    issuerUri: '',
+    scopes: '',
+    claimMapping: {
+      username: '',
+      email: '',
+      name: '',
+      groups: ''
+    }
+  };
+
+  private appSettingsService = inject(AppSettingsService);
+  private messageService = inject(MessageService);
+  private libraryService = inject(LibraryService);
+  private groupMappingService = inject(OidcGroupMappingService);
+  private t = inject(TranslocoService);
+  get allLibraries() { return this.libraryService.libraries(); }
+
+  private readonly loadSettingsEffect = effect(() => {
+    const settings = this.appSettingsService.appSettings();
+    if (settings) {
+      this.loadSettings(settings);
+    }
+  });
+
+  loadSettings(settings: AppSettings): void {
+    this.oidcEnabled = settings.oidcEnabled;
+
+    const details = settings.oidcAutoProvisionDetails;
+
+    this.autoUserProvisioningEnabled = details?.enableAutoProvisioning ?? false;
+    this.allowLocalAccountLinking = details?.allowLocalAccountLinking ?? true;
+    this.selectedPermissions = details?.defaultPermissions ?? [];
+    this.editingLibraryIds = details?.defaultLibraryIds ?? [];
+
+    const defaultClaimMapping = {
+      username: 'preferred_username',
+      email: 'email',
+      name: 'given_name',
+      groups: ''
+    };
+
+    this.sessionDurationHours = settings.oidcSessionDurationHours ?? null;
+    this.groupSyncMode.set(settings.oidcGroupSyncMode ?? 'DISABLED');
+    this.oidcForceOnlyMode = settings.oidcForceOnlyMode ?? false;
+    this.mobileRedirectUris = settings.oidcRedirectUris?.length
+      ? [...settings.oidcRedirectUris]
+      : [this.defaultMobileRedirectUri];
+    this.mobileRedirectUriInput = '';
+
+    this.oidcProvider = {
+      providerName: settings.oidcProviderDetails?.providerName || '',
+      clientId: settings.oidcProviderDetails?.clientId || '',
+      issuerUri: settings.oidcProviderDetails?.issuerUri || '',
+      scopes: settings.oidcProviderDetails?.scopes || '',
+      claimMapping: settings.oidcProviderDetails?.claimMapping || defaultClaimMapping,
+    };
+
+    this.oidcProviderClientSecret = settings.oidcProviderClientSecret || '';
+
+    this.availablePermissions.forEach(perm => {
+      perm.selected = this.selectedPermissions.includes(perm.value);
+    });
+
+    if (this.oidcEnabled) {
+      this.loadGroupMappings();
+    }
+  }
+
+  isOidcFormComplete(): boolean {
+    const p = this.oidcProvider;
+    return !!(p.providerName && p.clientId && p.issuerUri && p.claimMapping.name && p.claimMapping.email && p.claimMapping.username);
+  }
+
+  toggleOidcEnabled(): void {
+    if (!this.isOidcFormComplete()) return;
+    this.appSettingsService.toggleOidcEnabled(this.oidcEnabled).subscribe({
+      next: () => this.messageService.add({
+        severity: 'success',
+        summary: this.t.translate('settingsAuth.toast.saved'),
+        detail: this.t.translate('settingsAuth.toast.oidcUpdated')
+      }),
+      error: () => this.messageService.add({
+        severity: 'error',
+        summary: this.t.translate('common.error'),
+        detail: this.t.translate('settingsAuth.toast.oidcError')
+      })
+    });
+  }
+
+  saveOidcProvider(): void {
+    this.addMobileRedirectUriFromInput();
+
+    const payload: {key: AppSettingKey; newValue: unknown}[] = [
+      {
+        key: AppSettingKey.OIDC_PROVIDER_DETAILS,
+        newValue: this.oidcProvider
+      },
+      {
+        key: AppSettingKey.OIDC_REDIRECT_URIS,
+        newValue: this.mobileRedirectUris
+      },
+      {
+        key: AppSettingKey.OIDC_PROVIDER_CLIENT_SECRET,
+        newValue: this.oidcProviderClientSecret
+      }
+    ];
+    if (this.oidcEnabled) {
+      payload.push({
+        key: AppSettingKey.OIDC_SESSION_DURATION_HOURS,
+        newValue: this.sessionDurationHours
+      });
+    }
+    this.appSettingsService.saveSettings(payload).subscribe({
+      next: () => this.messageService.add({
+        severity: 'success',
+        summary: this.t.translate('settingsAuth.toast.saved'),
+        detail: this.t.translate('settingsAuth.toast.providerSaved')
+      }),
+      error: (error: HttpErrorResponse) => this.messageService.add({
+        severity: 'error',
+        summary: this.t.translate('common.error'),
+        detail: error?.error?.message || this.t.translate('settingsAuth.toast.providerError')
+      })
+    });
+  }
+
+  copyBackchannelUri(): void {
+    this.copyToClipboard(this.backchannelLogoutUri);
+  }
+
+  copyToClipboard(value: string): void {
+    navigator.clipboard.writeText(value).then(() => {
+      this.messageService.add({
+        severity: 'success',
+        summary: this.t.translate('settingsAuth.toast.saved'),
+        detail: this.t.translate('settingsAuth.toast.copiedToClipboard')
+      });
+    });
+  }
+
+  saveSessionDuration(): void {
+    const payload = [
+      {
+        key: AppSettingKey.OIDC_SESSION_DURATION_HOURS,
+        newValue: this.sessionDurationHours
+      }
+    ];
+    this.appSettingsService.saveSettings(payload).subscribe({
+      next: () => this.messageService.add({
+        severity: 'success',
+        summary: this.t.translate('settingsAuth.toast.saved'),
+        detail: this.t.translate('settingsAuth.toast.sessionDurationSaved')
+      }),
+      error: () => this.messageService.add({
+        severity: 'error',
+        summary: this.t.translate('common.error'),
+        detail: this.t.translate('settingsAuth.toast.sessionDurationError')
+      })
+    });
+  }
+
+  addMobileRedirectUriFromInput(): void {
+    const value = this.mobileRedirectUriInput.trim();
+    if (!value) {
+      this.mobileRedirectUriInput = '';
+      return;
+    }
+
+    this.mobileRedirectUris = [...this.mobileRedirectUris, value];
+    this.mobileRedirectUriInput = '';
+  }
+
+  removeMobileRedirectUri(index: number): void {
+    this.mobileRedirectUris = this.mobileRedirectUris.filter((_, currentIndex) => currentIndex !== index);
+  }
+
+  onMobileRedirectUriKeydown(event: KeyboardEvent): void {
+    if ((event.key === 'Enter' || event.key === ',') && this.mobileRedirectUriInput.trim()) {
+      event.preventDefault();
+      this.addMobileRedirectUriFromInput();
+      return;
+    }
+
+    if ((event.key === 'Backspace' || event.key === 'Delete')
+      && !this.mobileRedirectUriInput
+      && this.mobileRedirectUris.length > 0) {
+      event.preventDefault();
+      this.removeMobileRedirectUri(this.mobileRedirectUris.length - 1);
+    }
+  }
+
+  saveOidcAutoProvisionSettings(): void {
+    const provisionDetails = {
+      enableAutoProvisioning: this.autoUserProvisioningEnabled,
+      allowLocalAccountLinking: this.allowLocalAccountLinking,
+      defaultPermissions: [
+        'permissionRead',
+        ...this.availablePermissions.filter(p => p.selected).map(p => p.value)
+      ],
+      defaultLibraryIds: this.editingLibraryIds
+    };
+
+    const payload = [
+      {
+        key: AppSettingKey.OIDC_AUTO_PROVISION_DETAILS,
+        newValue: provisionDetails
+      }
+    ];
+
+    this.appSettingsService.saveSettings(payload).subscribe({
+      next: () => this.messageService.add({
+        severity: 'success',
+        summary: this.t.translate('settingsAuth.toast.saved'),
+        detail: this.t.translate('settingsAuth.toast.provisionSaved')
+      }),
+      error: () => this.messageService.add({
+        severity: 'error',
+        summary: this.t.translate('common.error'),
+        detail: this.t.translate('settingsAuth.toast.provisionError')
+      })
+    });
+  }
+
+  // Group mapping methods
+  loadGroupMappings(): void {
+    this.groupMappingService.getAll().subscribe(mappings => this.groupMappings.set(mappings));
+  }
+
+  saveGroupSyncMode(): void {
+    const payload = [
+      {
+        key: AppSettingKey.OIDC_GROUP_SYNC_MODE,
+        newValue: this.groupSyncMode()
+      }
+    ];
+    this.appSettingsService.saveSettings(payload).subscribe({
+      next: () => this.messageService.add({
+        severity: 'success',
+        summary: this.t.translate('settingsAuth.toast.saved'),
+        detail: this.t.translate('settingsAuth.toast.syncModeSaved')
+      }),
+      error: () => this.messageService.add({
+        severity: 'error',
+        summary: this.t.translate('common.error'),
+        detail: this.t.translate('settingsAuth.toast.syncModeError')
+      })
+    });
+  }
+
+  openNewGroupMapping(): void {
+    this.groupMappingDraft.set(this.emptyGroupMapping());
+  }
+
+  openEditGroupMapping(mapping: OidcGroupMapping): void {
+    this.groupMappingDraft.set({
+      ...mapping,
+      permissions: mapping.permissions.filter(permission => permission !== 'permissionRead'),
+      libraryIds: [...mapping.libraryIds],
+    });
+  }
+
+  updateGroupMappingDraft(patch: Partial<OidcGroupMapping>): void {
+    this.groupMappingDraft.update(draft => draft ? {...draft, ...patch} : draft);
+  }
+
+  setGroupMappingAdmin(isAdmin: boolean): void {
+    this.updateGroupMappingDraft(isAdmin
+      ? {isAdmin, permissions: this.availablePermissions.map(p => p.value)}
+      : {isAdmin});
+  }
+
+  setGroupMappingPermission(permission: string, selected: boolean): void {
+    this.groupMappingDraft.update(draft => {
+      if (!draft) return draft;
+
+      const permissions = selected
+        ? [...draft.permissions, permission]
+        : draft.permissions.filter(value => value !== permission);
+      return {...draft, permissions: [...new Set(permissions)]};
+    });
+  }
+
+  saveGroupMapping(): void {
+    const draft = this.groupMappingDraft();
+    if (!draft) return;
+
+    const mapping: OidcGroupMapping = {
+      ...draft,
+      permissions: [
+        'permissionRead',
+        ...draft.permissions
+      ]
+    };
+
+    const obs = mapping.id
+      ? this.groupMappingService.update(mapping.id, mapping)
+      : this.groupMappingService.create(mapping);
+
+    obs.subscribe({
+      next: () => {
+        this.groupMappingDraft.set(null);
+        this.loadGroupMappings();
+        this.messageService.add({
+          severity: 'success',
+          summary: this.t.translate('settingsAuth.toast.saved'),
+          detail: this.t.translate('settingsAuth.toast.groupMappingSaved')
+        });
+      },
+      error: () => this.messageService.add({
+        severity: 'error',
+        summary: this.t.translate('common.error'),
+        detail: this.t.translate('settingsAuth.toast.groupMappingError')
+      })
+    });
+  }
+
+  deleteGroupMapping(mapping: OidcGroupMapping): void {
+    if (!mapping.id) return;
+    this.groupMappingService.delete(mapping.id).subscribe({
+      next: () => {
+        this.loadGroupMappings();
+        this.messageService.add({
+          severity: 'success',
+          summary: this.t.translate('settingsAuth.toast.saved'),
+          detail: this.t.translate('settingsAuth.toast.groupMappingDeleted')
+        });
+      },
+      error: () => this.messageService.add({
+        severity: 'error',
+        summary: this.t.translate('common.error'),
+        detail: this.t.translate('settingsAuth.toast.groupMappingError')
+      })
+    });
+  }
+
+  getLibraryName(id: number): string {
+    return this.allLibraries.find(l => l.id === id)?.name ?? `#${id}`;
+  }
+
+  toggleTestDetails(): void {
+    this.showTestDetails.update(s => !s)
+  }
+
+  testConnection(): void {
+    this.isTestingConnection.set(true);
+    this.testConnectionResult.set(null);
+    this.appSettingsService.testOidcConnection(this.oidcProvider).subscribe({
+      next: (result) => {
+        this.testConnectionResult.set(result);
+        this.showTestDetails.set(true);
+        this.isTestingConnection.set(false);
+      },
+      error: () => {
+        this.messageService.add({
+          severity: 'error',
+          summary: this.t.translate('common.error'),
+          detail: this.t.translate('settingsAuth.testConnection.error')
+        });
+        this.isTestingConnection.set(false);
+      }
+    });
+  }
+
+  toggleOidcForceOnlyMode(): void {
+    const payload = [
+      {
+        key: AppSettingKey.OIDC_FORCE_ONLY_MODE,
+        newValue: this.oidcForceOnlyMode
+      }
+    ];
+    this.appSettingsService.saveSettings(payload).subscribe({
+      next: () => this.messageService.add({
+        severity: 'success',
+        summary: this.t.translate('settingsAuth.toast.saved'),
+        detail: this.t.translate('settingsAuth.oidcOnly.saved')
+      }),
+      error: (err) => {
+        this.oidcForceOnlyMode = !this.oidcForceOnlyMode;
+        this.messageService.add({
+          severity: 'error',
+          summary: this.t.translate('common.error'),
+          detail: err?.error?.message || this.t.translate('settingsAuth.oidcOnly.error')
+        });
+      }
+    });
+  }
+
+  private emptyGroupMapping(): OidcGroupMapping {
+    return {oidcGroupClaim: '', isAdmin: false, permissions: [], libraryIds: [], description: ''};
+  }
+}

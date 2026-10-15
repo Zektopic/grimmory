@@ -1,0 +1,79 @@
+name: Release - Dry Run Preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Ref or commit to preview as the next stable release candidate promoted onto main'
+        required: false
+        default: develop
+        type: string
+
+jobs:
+  preview:
+    name: Preview Next Stable Release
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+
+      - name: Prepare Stable Release Preview
+        run: |
+          set -eu
+
+          git fetch origin main --tags --force
+
+          if ! git merge-base --is-ancestor origin/main HEAD; then
+            echo "Selected ref does not contain origin/main and cannot be promoted cleanly to main" >&2
+            exit 1
+          fi
+
+          echo "Previewing release candidate range origin/main..HEAD"
+          {
+            echo "## Stable Release Preview"
+            echo
+            echo "- Base branch: \`main\`"
+            echo "- Candidate ref: \`$(git rev-parse --short HEAD)\`"
+            echo "- Range: \`origin/main..HEAD\`"
+            echo
+            echo "### Included Commits"
+            git log --reverse --no-merges --pretty='- %h %s' origin/main..HEAD || true
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          git checkout -B main "$(git rev-parse HEAD)"
+
+      - name: Install just
+        uses: taiki-e/install-action@5bf6ce016fd2e72eefc647cbca1e4213f65955b8 # v2.87.5
+        with:
+          tool: just
+
+      - name: Set Up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - name: Set Up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install Release Tooling Dependencies
+        run: just release install
+
+      - name: Run semantic-release Dry Run
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN != '' && secrets.RELEASE_BOT_TOKEN || github.token }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN != '' && secrets.RELEASE_BOT_TOKEN || github.token }}
+        run: just release preview | tee semantic-release-preview.log
+
+      - name: Upload Preview Output
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: semantic-release-preview
+          path: semantic-release-preview.log
+          retention-days: 14

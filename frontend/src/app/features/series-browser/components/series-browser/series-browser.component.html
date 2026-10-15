@@ -1,0 +1,101 @@
+<ng-container *transloco="let t; prefix: 'seriesBrowser'">
+<div class="series-browser-page">
+  @if (isBooksLoading()) {
+    <div class="loading-state">
+      <p-progressSpinner
+        [style]="{'width': '60px', 'height': '60px'}"
+        strokeWidth="3"
+        fill="transparent"
+        animationDuration="1.5s">
+      </p-progressSpinner>
+    </div>
+  }
+
+  @if (!isBooksLoading()) {
+    <div class="browse-header">
+      <h2 class="browse-title">{{ t('browseAllSeries') }}</h2>
+
+      <div class="browse-controls">
+        <div class="search-wrapper">
+          <i class="pi pi-search search-icon"></i>
+          <input
+            pInputText
+            type="text"
+            [placeholder]="t('searchPlaceholder')"
+            [ngModel]="searchValue"
+            (ngModelChange)="onSearchChange($event)"
+            aria-label="{{ t('searchPlaceholder') }}"
+            class="search-input"/>
+        </div>
+
+        <div class="filter-sort-wrapper">
+          <p-select
+            [options]="filterOptions"
+            [ngModel]="statusFilterValue"
+            (ngModelChange)="onStatusFilterChange($event)"
+            optionLabel="label"
+            optionValue="value"
+            class="filter-dropdown">
+          </p-select>
+
+          <p-select
+            [options]="sortOptions"
+            [ngModel]="sortByValue"
+            (ngModelChange)="onSortChange($event)"
+            optionLabel="label"
+            optionValue="value"
+            class="sort-dropdown">
+          </p-select>
+
+          <button
+            type="button"
+            class="display-settings-btn"
+            [attr.aria-label]="'common.displaySettings' | transloco"
+            [title]="'common.displaySettings' | transloco"
+            (click)="displaySettingsPopover.toggle($event)">
+            <i class="pi pi-sliders-h"></i>
+          </button>
+        </div>
+      </div>
+      <p-popover #displaySettingsPopover>
+        <div class="display-settings-content">
+          <span class="display-settings-label">{{ 'common.cardSize' | transloco }}</span>
+          <app-grid-density-buttons
+            [smallerDisabled]="gridDensitySmallerDisabled()"
+            [largerDisabled]="gridDensityLargerDisabled()"
+            (densityChange)="adjustGridDensity($event)"/>
+        </div>
+      </p-popover>
+    </div>
+
+    @if (filteredSeries(); as seriesList) {
+      @if (seriesList.length === 0) {
+        <div class="empty-state">
+          <i class="pi pi-list empty-icon"></i>
+          <p>{{ t('noSeriesFound') }}</p>
+        </div>
+      } @else {
+        <div #scrollElement class="virtual-scroller">
+          <div class="virtual-content" [style.height.px]="virtualGrid.virtualizer.getTotalSize()">
+            @for (virtualItem of virtualGrid.virtualizer.getVirtualItems(); track virtualItem.key) {
+              @if (seriesList[virtualItem.index]; as series) {
+                <div
+                  class="virtual-cell"
+                  [style.width.px]="virtualGrid.itemWidth()"
+                  [style.height.px]="virtualItem.size"
+                  [style.transform]="virtualGrid.itemTransform(virtualItem)">
+                  <app-series-card
+                    [series]="series"
+                    [style.--card-scale]="currentCardScale()"
+                    (cardClick)="navigateToSeries($event)">
+                  </app-series-card>
+                </div>
+              }
+            }
+          </div>
+        </div>
+      }
+    }
+  }
+</div>
+</ng-container>

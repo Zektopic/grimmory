@@ -1,0 +1,934 @@
+@mixin cbx-reader-continuation-affordance {
+  .cbx-continuation-spacer {
+    flex: 0 0 auto;
+    min-height: 28vh;
+    width: 100%;
+    pointer-events: none;
+  }
+
+  .cbx-continuation-hint {
+    flex: 0 0 auto;
+    width: 100%;
+    text-align: center;
+    font-size: 0.77rem;
+    color: rgb(255 255 255 / 45%);
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.35s ease, transform 0.35s ease, color 0.35s ease;
+    pointer-events: none;
+
+    &.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+      color: rgb(255 255 255 / 72%);
+    }
+  }
+}
+
+.comic-reader-container {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  width: 100vw;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: #1a1a1a;
+  color: #fff;
+  position: relative;
+  touch-action: none;
+  overscroll-behavior: none;
+  user-select: none;
+
+  &:focus {
+    outline: none;
+  }
+
+  &:fullscreen {
+    height: 100%;
+    width: 100%;
+    max-height: 100%;
+  }
+
+  .webtoon-suggestion-banner {
+    flex: 0 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6563rem 0.875rem;
+    padding: 0.5687rem 0.875rem;
+    margin: 0 0.4375rem;
+    background: rgb(30 40 55 / 95%);
+    border: 1px solid rgb(255 255 255 / 12%);
+    border-radius: 8px;
+    z-index: 900;
+    box-shadow: 0 4px 16px rgb(0 0 0 / 35%);
+  }
+
+  .webtoon-suggestion-text {
+    margin: 0;
+    flex: 1 1 200px;
+    font-size: 0.7875rem;
+    line-height: 1.35;
+    color: rgb(255 255 255 / 88%);
+  }
+
+  .webtoon-suggestion-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4375rem;
+    align-items: center;
+  }
+
+  .webtoon-btn {
+    padding: 0.35rem 0.6563rem;
+    border-radius: 6px;
+    border: 1px solid rgb(255 255 255 / 20%);
+    background: rgb(255 255 255 / 8%);
+    color: #fff;
+    font-size: 0.7438rem;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+
+    &:hover {
+      background: rgb(255 255 255 / 14%);
+    }
+
+    &.primary {
+      border-color: #4a90e2;
+      background: rgb(74 144 226 / 25%);
+
+      &:hover {
+        background: rgb(74 144 226 / 38%);
+      }
+    }
+
+    &.subtle {
+      border-color: transparent;
+      background: transparent;
+      color: rgb(255 255 255 / 55%);
+      font-size: 0.7rem;
+
+      &:hover {
+        color: rgb(255 255 255 / 85%);
+      }
+    }
+  }
+
+  // RTL reading mode - reverse page order in two-page view
+  &.rtl-reading {
+    .two-page-view {
+      .pages-wrapper,
+      .previous-page-layer,
+      .current-page-layer {
+        flex-direction: row-reverse;
+      }
+    }
+  }
+
+  // Slideshow progress bar
+  .slideshow-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: #4a90e2;
+    z-index: 1001;
+    pointer-events: none;
+    animation: slideshow-fill linear infinite;
+    transition: bottom 0.3s ease;
+
+    &.above-footer {
+      bottom: 52px;
+    }
+  }
+
+  @keyframes slideshow-fill {
+    from {
+      width: 0;
+    }
+
+    to {
+      width: 100%;
+    }
+  }
+
+  .magnifier-lens {
+    position: fixed;
+    top: 0;
+    left: 0;
+    display: none;
+    border-radius: 50%;
+    border: 3px solid rgb(255 255 255 / 80%);
+    box-shadow: 0 0 0 1px rgb(0 0 0 / 30%), 0 8px 32px rgb(0 0 0 / 50%);
+    pointer-events: none;
+    z-index: 1000;
+    background-repeat: no-repeat;
+  }
+
+  .bookmark-indicator {
+    position: absolute;
+    top: 0;
+    right: 24px;
+    z-index: 10;
+    pointer-events: none;
+    filter: drop-shadow(0 2px 4px rgb(0 0 0 / 30%));
+
+    svg {
+      display: block;
+    }
+  }
+
+  .image-container {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    padding: 0.4375rem;
+    background: #0f0f0f;
+    min-height: 0;
+
+    &:not(.two-page-view, .infinite-scroll) {
+      flex-direction: column;
+      align-items: stretch;
+
+      .pages-wrapper {
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 0;
+      }
+
+      .end-of-comic-action {
+        flex: 0 0 auto;
+        margin-top: 0.875rem;
+      }
+    }
+
+    &.magnifier-active {
+      cursor: none;
+    }
+
+    &.bg-black {
+      background: #000;
+    }
+
+    &.bg-gray {
+      background: #0f0f0f;
+    }
+
+    &.bg-white {
+      background: #fff;
+    }
+
+    &:not(.infinite-scroll) {
+      .pages-wrapper {
+        display: flex;
+        gap: 0.875rem;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+        position: relative;
+      }
+
+      .previous-page-layer,
+      .current-page-layer {
+        display: flex;
+        gap: 0.875rem;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+      }
+
+      .previous-page-layer {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+      }
+
+      .current-page-layer {
+        position: relative;
+        z-index: 2;
+
+        &.fade-in {
+          animation: fade-in 0.15s ease-out forwards;
+        }
+      }
+
+      @keyframes fade-in {
+        from {
+          opacity: 0.7;
+        }
+
+        to {
+          opacity: 1;
+        }
+      }
+
+      .page-image {
+        object-fit: contain;
+        box-shadow: 0 8px 32px rgb(0 0 0 / 60%);
+        border-radius: 4px;
+      }
+
+      &.fit-width {
+        overflow-y: auto;
+        align-items: flex-start;
+        touch-action: pan-y;
+
+        .pages-wrapper,
+        .previous-page-layer,
+        .current-page-layer {
+          height: auto;
+          max-height: none;
+        }
+
+        .pages-wrapper {
+          min-height: 100%;
+        }
+
+        .current-page-layer {
+          margin-block: auto;
+        }
+
+        .page-image {
+          width: 100%;
+          height: auto;
+        }
+
+        &.two-page-view {
+          .previous-page-layer,
+          .current-page-layer {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.875rem;
+            width: 100%;
+          }
+
+          .single-page-layer {
+            grid-template-columns: 1fr;
+          }
+
+          .page-image {
+            width: 100%;
+            height: auto;
+          }
+        }
+      }
+
+      &.fit-height {
+        overflow: auto;
+        align-items: stretch;
+        touch-action: pan-x pan-y;
+
+        .pages-wrapper {
+          width: max-content;
+          min-width: 100%;
+          min-height: 100%;
+          height: auto;
+        }
+
+        .current-page-layer {
+          width: max-content;
+          height: auto;
+          margin-inline: auto;
+        }
+
+        .page-image {
+          width: auto;
+          height: calc(100dvh - 0.875rem);
+          max-width: none;
+        }
+
+        &.two-page-view {
+          .pages-wrapper {
+            display: block;
+          }
+
+          .previous-page-layer,
+          .current-page-layer {
+            display: grid;
+            grid-template-columns: repeat(2, max-content);
+            width: max-content;
+            height: auto;
+            margin-inline: auto;
+          }
+
+          .page-image {
+            width: auto;
+            height: calc(100dvh - 0.875rem);
+            max-width: none;
+          }
+
+          .single-page-layer {
+            grid-template-columns: max-content;
+
+            .page-image {
+              max-width: none;
+            }
+          }
+        }
+      }
+
+      &.fit-actual-size {
+        overflow: auto;
+        align-items: flex-start;
+        touch-action: pan-x pan-y;
+
+        .pages-wrapper,
+        .previous-page-layer,
+        .current-page-layer {
+          width: max-content;
+          height: max-content;
+          min-width: 0;
+          min-height: 0;
+        }
+
+        .pages-wrapper {
+          display: block;
+        }
+
+        .previous-page-layer,
+        .current-page-layer {
+          justify-content: flex-start;
+          align-items: flex-start;
+        }
+
+        .page-image {
+          width: auto;
+          height: auto;
+          max-width: none;
+          max-height: none;
+        }
+
+        &.two-page-view {
+          .previous-page-layer,
+          .current-page-layer {
+            display: grid;
+            grid-template-columns: repeat(2, max-content);
+            width: max-content;
+            height: max-content;
+            justify-content: start;
+          }
+
+          .single-page-layer {
+            grid-template-columns: max-content;
+          }
+        }
+      }
+
+      &.fit-page {
+        .page-image {
+          max-width: 100%;
+          max-height: 100%;
+          width: auto;
+          height: auto;
+        }
+
+        &.two-page-view {
+          .page-image {
+            max-width: calc(50% - 0.4375rem);
+            max-height: 100%;
+            width: auto;
+            height: auto;
+          }
+
+          .single-page-layer {
+            .page-image {
+              max-width: 100%;
+            }
+          }
+        }
+      }
+
+      &.fit-auto {
+        .page-image {
+          max-width: 100%;
+          max-height: 100%;
+          width: auto;
+          height: auto;
+        }
+
+        &.two-page-view {
+          .page-image {
+            max-width: calc(50% - 0.4375rem);
+            max-height: 100%;
+            width: auto;
+            height: auto;
+          }
+
+          .single-page-layer {
+            .page-image {
+              max-width: 100%;
+            }
+          }
+        }
+      }
+    }
+
+    &.infinite-scroll {
+      overflow: hidden auto;
+      align-items: flex-start;
+      touch-action: pan-y;
+      overscroll-behavior: contain;
+
+      .infinite-scroll-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.875rem;
+        width: 100%;
+        min-width: 0;
+        padding: 0.875rem 0;
+        overflow-anchor: none;
+      }
+
+      .strip-width-constrain {
+        // Width set inline from quick-settings signal (% of wrapper). Center column when < 100%.
+        flex-shrink: 0;
+        min-width: 0;
+        max-width: 100%;
+        margin-inline: auto;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.875rem;
+      }
+
+      @include cbx-reader-continuation-affordance;
+
+      .cbx-continuation-hint {
+        padding: 0.4375rem 0.875rem 0.875rem;
+      }
+
+      .page-image {
+        box-shadow: 0 8px 32px rgb(0 0 0 / 60%);
+        border-radius: 4px;
+        transition: none;
+
+        &:hover {
+          transform: none;
+        }
+      }
+
+      &.fit-width .page-image {
+        width: 100%;
+        height: auto;
+      }
+
+      &.fit-height {
+        .infinite-scroll-wrapper {
+          min-height: 100%;
+        }
+
+        .page-image {
+          width: auto;
+          height: calc(100vh - 1.75rem);
+          max-width: 100%;
+        }
+      }
+
+      &.fit-actual-size {
+        overflow-x: auto;
+
+        .infinite-scroll-wrapper {
+          align-items: center;
+
+          // Stable width so strip max-width % resolves against the reader scrollport, not max-content.
+          width: 100%;
+          min-width: 0;
+        }
+
+        .page-image {
+          width: auto;
+          height: auto;
+        }
+      }
+
+      &.fit-page {
+        .infinite-scroll-wrapper {
+          min-height: 100%;
+        }
+
+        .page-image {
+          max-width: 100%;
+          max-height: calc(100vh - 1.75rem);
+          width: auto;
+          height: auto;
+        }
+      }
+
+      &.fit-auto {
+        .infinite-scroll-wrapper {
+          min-height: 100%;
+        }
+
+        .page-image {
+          max-width: 100%;
+          max-height: calc(100vh - 1.75rem);
+          width: auto;
+          height: auto;
+        }
+      }
+
+      .loading-more {
+        padding: 1.75rem;
+        display: flex;
+        justify-content: center;
+      }
+    }
+
+    // Long-strip: same fit semantics as infinite scroll (width:100% only for fit-width),
+    // so switching scroll modes does not change zoom.
+    &.long-strip {
+      overflow: hidden auto;
+      align-items: flex-start;
+      touch-action: pan-y;
+      overscroll-behavior: contain;
+
+      .long-strip-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+        min-width: 0;
+
+        // No gap, no padding — gapless vertical strip
+      }
+
+      .strip-width-constrain {
+        flex-shrink: 0;
+        min-width: 0;
+        max-width: 100%;
+        margin-inline: auto;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      @include cbx-reader-continuation-affordance;
+
+      .cbx-continuation-hint {
+        padding: 0.6563rem 0.875rem 1.0938rem;
+      }
+
+      .long-strip-image {
+        display: block;
+        object-fit: contain;
+        border: 0;
+        margin: 0;
+        padding: 0;
+
+        // Hardware acceleration (Kavita pattern)
+        transform: translate3d(0, 0, 0);
+      }
+
+      &.fit-width .long-strip-image {
+        width: 100%;
+        height: auto;
+        max-width: 100%;
+      }
+
+      &.fit-height {
+        .long-strip-wrapper {
+          min-height: 100%;
+        }
+
+        .long-strip-image {
+          width: auto;
+          height: calc(100vh - 1.75rem);
+          max-width: 100%;
+        }
+      }
+
+      &.fit-actual-size {
+        overflow-x: auto;
+
+        .long-strip-wrapper {
+          align-items: center;
+          width: 100%;
+          min-width: 0;
+        }
+
+        .long-strip-image {
+          width: auto;
+          height: auto;
+          max-width: none;
+        }
+      }
+
+      &.fit-page {
+        .long-strip-wrapper {
+          min-height: 100%;
+        }
+
+        .long-strip-image {
+          max-width: 100%;
+          max-height: calc(100vh - 1.75rem);
+          width: auto;
+          height: auto;
+        }
+      }
+
+      &.fit-auto {
+        .long-strip-wrapper {
+          min-height: 100%;
+        }
+
+        .long-strip-image {
+          max-width: 100%;
+          max-height: calc(100vh - 1.75rem);
+          width: auto;
+          height: auto;
+        }
+      }
+    }
+
+    .no-pages {
+      text-align: center;
+      color: #999;
+      font-size: 18px;
+    }
+
+    .loading-container {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 1.3125rem;
+      text-align: center;
+
+      .loading-text {
+        color: #ccc;
+        font-size: 16px;
+        max-width: 400px;
+        line-height: 1.5;
+        margin: 0;
+      }
+    }
+  }
+
+  ::ng-deep .small-spinner {
+    width: 40px;
+    height: 40px;
+  }
+
+  .end-of-comic-action {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 1.75rem 0.875rem;
+
+    .next-book-action-button {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.6563rem;
+      padding: 1.75rem 2.625rem;
+      background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+      border: none;
+      border-radius: 12px;
+      font-weight: 600;
+      color: #fff;
+      cursor: pointer;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      box-shadow: 0 4px 20px rgb(74 144 226 / 30%);
+      min-width: 280px;
+
+      &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 30px rgb(74 144 226 / 50%);
+        background: linear-gradient(135deg, #357abd 0%, #2a6399 100%);
+      }
+
+      &:active {
+        transform: translateY(0);
+      }
+
+      .action-icon {
+        font-size: 2.1875rem;
+      }
+
+      .action-text {
+        font-size: 0.9625rem;
+      }
+
+      .book-title {
+        font-size: 0.8313rem;
+        font-weight: 400;
+        opacity: 0.9;
+        max-width: 350px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+  }
+}
+
+@media (width <=768px) {
+  .comic-reader-container {
+    .slideshow-progress.above-footer {
+      bottom: 48px;
+    }
+
+    .image-container {
+      top: 0;
+      bottom: 0;
+    }
+
+    .end-of-comic-action {
+      padding: 1.3125rem 0.875rem;
+
+      .next-book-action-button {
+        min-width: 240px;
+        padding: 1.3125rem 1.75rem;
+
+        .action-icon {
+          font-size: 1.75rem;
+        }
+
+        .action-text {
+          font-size: var(--app-text-base);
+        }
+
+        .book-title {
+          font-size: 0.7438rem;
+          max-width: 250px;
+        }
+      }
+    }
+  }
+}
+
+.loader-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgb(0 0 0 / 80%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.loader-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.3125rem;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgb(255 255 255 / 20%);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.loader-text {
+  color: #fff;
+  font-size: 0.9625rem;
+  margin: 0;
+  font-weight: 500;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// Click-to-paginate overlay
+.click-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+
+  &.is-visible {
+    opacity: 1;
+  }
+
+  .click-zone {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .click-zone-prev {
+    width: 40%;
+    background: rgb(255 255 255 / 3%);
+  }
+
+  .click-zone-menu {
+    width: 20%;
+  }
+
+  .click-zone-next {
+    width: 40%;
+    background: rgb(255 255 255 / 3%);
+  }
+
+  .zone-arrow {
+    font-size: 1.75rem;
+    color: rgb(255 255 255 / 30%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  &.is-visible .zone-arrow {
+    opacity: 1;
+  }
+
+  // RTL: swap prev/next zones visually
+  &.rtl-overlay {
+    flex-direction: row-reverse;
+  }
+
+  // Disable pointer events when magnifier is active so elementFromPoint can reach images
+  &.magnifier-disabled {
+    pointer-events: none;
+
+    .click-zone {
+      pointer-events: none;
+    }
+  }
+}
+
+// Emulate book mode spine shadow in two-page view
+.image-container.emulate-book {
+  .pages-wrapper,
+  .current-page-layer {
+    position: relative;
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      width: 0;
+      z-index: 2;
+      pointer-events: none;
+      box-shadow:
+        -4px 0 12px rgb(0 0 0 / 40%),
+        4px 0 12px rgb(0 0 0 / 40%),
+        -2px 0 6px rgb(0 0 0 / 20%),
+        2px 0 6px rgb(0 0 0 / 20%);
+    }
+  }
+}

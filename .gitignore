@@ -44,7 +44,16 @@ local-scripts/
 
 ### Dev config, books, and data ###
 booklore-ui/test-results/
-booklore-api/src/main/resources/application-local.yaml
+frontend/test-results/
+frontend/output/
+frontend/playwright-report/
+frontend/.playwright-browsers/
+node_modules/
+backend/src/main/resources/application-local.yaml
 /shared/
-example-docker/compose.yml
-.agents/
+
+/scratch
+/pnpm-debug.log
+/.pnpm-store/
+/.angular/
+.worktrees/

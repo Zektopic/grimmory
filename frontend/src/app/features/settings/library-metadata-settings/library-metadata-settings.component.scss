@@ -1,0 +1,208 @@
+@use '../../../shared/styles/settings-shared' as settings;
+
+.main-container {
+  @include settings.settings-page-container;
+}
+
+@include settings.settings-page-header;
+
+.settings-title {
+  @include settings.settings-page-title;
+
+  margin-bottom: 0.6563rem;
+}
+
+.settings-description {
+  @include settings.settings-page-description;
+}
+
+.settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.preferences-section {
+  @media (width >= 768px) {
+    padding: 0 0.875rem;
+  }
+}
+
+.section-header {
+  @include settings.settings-section-header;
+
+  margin-bottom: 0.875rem;
+
+  .section-description {
+    @include settings.settings-section-description;
+
+    margin: 0.4375rem 0 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4375rem;
+
+    .pi {
+      color: var(--p-primary-color);
+      margin-top: 0.1094rem;
+      flex-shrink: 0;
+    }
+  }
+}
+
+.section-title {
+  @include settings.settings-section-title;
+
+  margin: 0 0 0.4375rem;
+}
+
+.settings-card {
+  @include settings.settings-card;
+
+  app-metadata-advanced-fetch-options {
+    display: block;
+    width: 100%;
+
+    ::ng-deep {
+      > div,
+      > .container,
+      > .main-container {
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        background: transparent !important;
+      }
+    }
+  }
+}
+
+:host ::ng-deep {
+  .p-accordion {
+    .p-accordion-panel {
+      margin-bottom: 0.4375rem;
+      border: 1px solid var(--p-content-border-color);
+      border-radius: 6px;
+      overflow: hidden;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+
+    .p-accordion-header {
+      background: var(--color-card);
+      border: none;
+      border-radius: 0;
+
+      &:hover {
+        background: var(--color-card);
+      }
+
+      .p-accordion-header-content {
+        width: 100%;
+        padding: 0.875rem 1.0938rem;
+        display: flex;
+        align-items: center;
+      }
+    }
+
+    .p-accordion-content {
+      border: none;
+      border-top: 1px solid var(--p-content-border-color);
+
+      .p-accordion-content-content {
+        padding: 0;
+      }
+    }
+  }
+}
+
+.accordion-header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 0.875rem;
+
+  @media (width <= 768px) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.6563rem;
+  }
+}
+
+.sidecar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  margin-left: auto;
+
+  @media (width <= 768px) {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+.library-info {
+  display: flex;
+  align-items: center;
+  gap: 0.6563rem;
+
+  .library-icon {
+    font-size: 1.05rem;
+    color: var(--p-primary-color);
+  }
+
+  .library-name {
+    font-weight: settings.$settings-section-title-weight;
+    color: var(--color-text);
+  }
+
+  .dot-separator {
+    color: var(--p-text-muted-color);
+    font-weight: bold;
+    font-size: settings.$settings-section-description-size;
+    margin: 0 0.2188rem;
+    opacity: 0.6;
+  }
+
+  .override-indicator,
+  .default-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.3281rem;
+    font-size: settings.$settings-section-description-size;
+    font-weight: settings.$settings-label-weight;
+
+    &.custom {
+      color: var(--p-green-500);
+    }
+
+    &.default {
+      color: var(--p-blue-500);
+    }
+
+    i {
+      font-size: settings.$settings-section-description-size;
+    }
+  }
+}
+
+.accordion-content-wrapper {
+  padding: 1.3125rem;
+
+  app-metadata-advanced-fetch-options {
+    display: block;
+    width: 100%;
+
+    ::ng-deep {
+      > div,
+      > .container,
+      > .main-container {
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        background: transparent !important;
+      }
+    }
+  }
+}

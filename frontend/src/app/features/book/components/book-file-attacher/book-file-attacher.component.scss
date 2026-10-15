@@ -1,0 +1,191 @@
+@use '../../../../shared/styles/panel-shared' as panel;
+
+.book-file-attacher-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.panel-header {
+  @include panel.panel-header;
+
+  flex-shrink: 0;
+}
+
+.dialog-content {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 1.3125rem;
+  background: var(--color-page);
+  border: 1px solid var(--color-border);
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 8%);
+  display: flex;
+  flex-direction: column;
+  gap: 1.3125rem;
+}
+
+.section-title {
+  font-size: var(--app-text-sm);
+  font-weight: 600;
+  color: var(--p-text-muted-color);
+  margin-bottom: 0.6563rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.source-info {
+  .source-books-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4375rem;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .book-info-card {
+    background: var(--color-card);
+    border-radius: 8px;
+    padding: 0.6563rem 0.875rem;
+    border: 1px solid var(--color-border);
+  }
+
+  .book-title {
+    font-weight: 600;
+    font-size: 0.8203rem;
+    margin-bottom: 0.1094rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .book-authors {
+    color: var(--p-text-muted-color);
+    font-size: var(--app-text-sm);
+    margin-bottom: 0.3281rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .file-info {
+    display: flex;
+    align-items: center;
+    gap: 0.4375rem;
+    color: var(--p-primary-color);
+    font-size: var(--app-text-sm);
+    font-weight: 500;
+
+    i {
+      font-size: var(--app-text-sm);
+    }
+
+    span {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+}
+
+.target-selection {
+  :host ::ng-deep {
+    .full-width {
+      width: 100%;
+    }
+  }
+}
+
+.book-suggestion {
+  padding: 0.2188rem 0;
+  overflow: hidden;
+
+  .suggestion-title {
+    font-weight: 500;
+    margin-bottom: 0.1094rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .suggestion-authors {
+    font-size: var(--app-text-sm);
+    color: var(--p-text-muted-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .suggestion-format {
+    font-size: var(--app-text-xs);
+    color: var(--p-primary-color);
+    font-weight: 600;
+    margin-top: 0.2188rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.delete-option {
+  display: flex;
+  align-items: center;
+  gap: 0.6563rem;
+
+  .delete-label {
+    font-size: 0.8203rem;
+    cursor: pointer;
+    user-select: none;
+  }
+}
+
+.warning-message {
+  display: flex;
+  gap: 0.6563rem;
+  padding: 0.875rem;
+  background: var(--p-yellow-50);
+  border: 1px solid var(--p-yellow-200);
+  border-radius: 8px;
+  color: var(--p-yellow-800);
+
+  i {
+    flex-shrink: 0;
+    font-size: 1.0938rem;
+    margin-top: 0.1094rem;
+  }
+
+  .warning-text {
+    font-size: var(--app-text-sm);
+    line-height: 1.5;
+
+    p {
+      margin: 0;
+
+      &:not(:last-child) {
+        margin-bottom: 0.4375rem;
+      }
+    }
+  }
+}
+
+:host-context(.dark) {
+  .warning-message {
+    background: rgb(234 179 8 / 10%);
+    border-color: rgb(234 179 8 / 30%);
+    color: var(--p-yellow-400);
+  }
+
+  .source-info .book-info-card {
+    background: var(--color-card);
+  }
+}
+
+.action-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6563rem;
+  margin-top: auto;
+  padding-top: 0.4375rem;
+}

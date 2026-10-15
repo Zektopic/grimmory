@@ -1,0 +1,139 @@
+@use '../../../../shared/styles/panel-shared' as panel;
+
+.changelog-container {
+  display: flex;
+  flex-direction: column;
+  max-height: 90dvh;
+}
+
+.panel-header {
+  @include panel.panel-header;
+}
+
+.dialog-content {
+  padding: 1.3125rem;
+  background: var(--card-background);
+  border: 1px solid var(--border-color);
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 8%);
+  overflow-y: auto;
+  flex: 1;
+}
+
+.loading-state,
+.empty-state {
+  padding: 0.875rem;
+  text-align: center;
+  color: var(--text-secondary-color);
+}
+
+.changelog-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.3125rem;
+}
+
+.release-item {
+  padding-bottom: 0.875rem;
+  border-bottom: 1px solid var(--border-color);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.release-title {
+  font-weight: 700;
+  font-size: 1.0938rem;
+  padding-bottom: 0.4375rem;
+  margin: 0;
+}
+
+.release-link {
+  color: var(--primary-color);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.release-content {
+  width: 100%;
+  max-width: 100%;
+  line-height: 1.75;
+  color: var(--text-color);
+
+  :host ::ng-deep & {
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.3125rem;
+      margin-bottom: 0.6563rem;
+      font-weight: 600;
+      line-height: 1.25;
+      color: var(--text-color);
+
+      &:first-child {
+        margin-top: 0;
+      }
+    }
+
+    h3 {
+      margin-top: 0;
+      font-size: var(--app-text-lg);
+    }
+
+    p {
+      margin-top: 0.6563rem;
+      margin-bottom: 0.6563rem;
+    }
+
+    ul, ol {
+      margin-top: 0.6563rem;
+      margin-bottom: 0.6563rem;
+      padding-left: 1.3125rem;
+    }
+
+    li {
+      margin-top: 0.2188rem;
+      margin-bottom: 0.2188rem;
+    }
+
+    code {
+      font-size: 0.875em;
+      background: var(--ground-background);
+      padding: 0.1094rem 0.3281rem;
+      border-radius: 0.2188rem;
+    }
+
+    pre {
+      margin-top: 0.875rem;
+      margin-bottom: 0.875rem;
+      padding: 0.875rem;
+      background: var(--ground-background);
+      border-radius: 0.4375rem;
+      overflow-x: auto;
+
+      code {
+        background: transparent;
+        padding: 0;
+      }
+    }
+
+    a {
+      color: var(--primary-color);
+      text-decoration: underline;
+
+      &:hover {
+        text-decoration: none;
+      }
+    }
+
+    blockquote {
+      margin: 0.875rem 0;
+      padding-left: 0.875rem;
+      border-left: 3px solid var(--border-color);
+      color: var(--text-secondary-color);
+    }
+  }
+}

@@ -1,0 +1,325 @@
+import {Component, DestroyRef, WritableSignal, effect, inject, signal, OnInit} from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+
+import {Button} from '@openng/optimus-ui/button';
+import {InputText} from '@openng/optimus-ui/inputtext';
+import {API_CONFIG} from '../../../core/config/api-config';
+import {Tooltip} from '@openng/optimus-ui/tooltip';
+import {TableModule} from '@openng/optimus-ui/table';
+import {Dialog} from '@openng/optimus-ui/dialog';
+import {FormsModule} from '@angular/forms';
+import {ConfirmDialog} from '@openng/optimus-ui/confirmdialog';
+import {ConfirmationService, MessageService} from '@openng/optimus-ui/api';
+import {OpdsService, OpdsSortOrder, OpdsUserV2, OpdsUserV2CreateRequest} from './opds.service';
+import {catchError} from 'rxjs/operators';
+import {UserService} from '../user-management/user.service';
+import {of} from 'rxjs';
+import {ToggleSwitch} from '@openng/optimus-ui/toggleswitch';
+import {AppSettingsService} from '../../../shared/service/app-settings.service';
+import {AppSettingKey, AppSettings} from '../../../shared/model/app-settings.model';
+import {ExternalDocLinkComponent} from '../../../shared/components/external-doc-link/external-doc-link.component';
+import {Select} from '@openng/optimus-ui/select';
+import {TranslocoDirective, TranslocoPipe, TranslocoService} from '@jsverse/transloco';
+
+@Component({
+  selector: 'app-opds-settings',
+  imports: [
+    Button,
+    InputText,
+    Tooltip,
+    Dialog,
+    FormsModule,
+    ConfirmDialog,
+    TableModule,
+    ToggleSwitch,
+    ExternalDocLinkComponent,
+    Select,
+    TranslocoDirective,
+    TranslocoPipe
+  ],
+  providers: [ConfirmationService],
+  templateUrl: './opds-settings.html',
+  styleUrl: './opds-settings.scss'
+})
+export class OpdsSettings implements OnInit {
+
+  opdsEndpoint = `${API_CONFIG.BASE_URL}/api/v1/opds`;
+  komgaEndpoint = `${API_CONFIG.BASE_URL}/komga`;
+  opdsEnabled = false;
+  komgaApiEnabled = false;
+  komgaGroupUnknown = true;
+
+  private opdsService = inject(OpdsService);
+  private confirmationService = inject(ConfirmationService);
+  private messageService = inject(MessageService);
+  private userService = inject(UserService);
+  private appSettingsService = inject(AppSettingsService);
+  private t = inject(TranslocoService);
+
+  users: WritableSignal<OpdsUserV2[]> = signal([]);
+  loading = signal(false);
+  showCreateUserDialog = false;
+  newUser: OpdsUserV2CreateRequest = {username: '', password: '', sortOrder: 'RECENT'};
+  passwordVisibility: boolean[] = [];
+  hasPermission = false;
+
+  editingUserId: number | null = null;
+  editingSortOrder: OpdsSortOrder | null = null;
+
+  private readonly destroyRef = inject(DestroyRef);
+  dummyPassword: string = "***********************";
+
+  sortOrderOptions = [
+    {label: 'Recently Added', value: 'RECENT' as OpdsSortOrder, translationKey: 'settingsOpds.sortOrders.recent'},
+    {label: 'Title (A-Z)', value: 'TITLE_ASC' as OpdsSortOrder, translationKey: 'settingsOpds.sortOrders.titleAsc'},
+    {label: 'Title (Z-A)', value: 'TITLE_DESC' as OpdsSortOrder, translationKey: 'settingsOpds.sortOrders.titleDesc'},
+    {label: 'Author (A-Z)', value: 'AUTHOR_ASC' as OpdsSortOrder, translationKey: 'settingsOpds.sortOrders.authorAsc'},
+    {label: 'Author (Z-A)', value: 'AUTHOR_DESC' as OpdsSortOrder, translationKey: 'settingsOpds.sortOrders.authorDesc'},
+    {label: 'Series (A-Z)', value: 'SERIES_ASC' as OpdsSortOrder, translationKey: 'settingsOpds.sortOrders.seriesAsc'},
+    {label: 'Series (Z-A)', value: 'SERIES_DESC' as OpdsSortOrder, translationKey: 'settingsOpds.sortOrders.seriesDesc'},
+    {label: 'Rating (Low to High)', value: 'RATING_ASC' as OpdsSortOrder, translationKey: 'settingsOpds.sortOrders.ratingAsc'},
+    {label: 'Rating (High to Low)', value: 'RATING_DESC' as OpdsSortOrder, translationKey: 'settingsOpds.sortOrders.ratingDesc'}
+  ];
+
+  private hasLoadedUsers = false;
+
+  private readonly syncPermissionEffect = effect(() => {
+    const user = this.userService.currentUser();
+    this.hasPermission = !!(user?.permissions.canAccessOpds || user?.permissions.admin);
+    if (!this.hasPermission) {
+      this.loading.set(false);
+      this.users.set([]);
+      this.hasLoadedUsers = false;
+    }
+  });
+
+  private readonly syncSettingsEffect = effect(() => {
+    const user = this.userService.currentUser();
+    const settings = this.appSettingsService.appSettings();
+    const hasPermission = !!(user?.permissions.canAccessOpds || user?.permissions.admin);
+
+    if (!hasPermission) {
+      return;
+    }
+
+    if (!settings) {
+      this.loading.set(true);
+      return;
+    }
+
+    this.applyAppSettings(settings);
+  });
+
+  ngOnInit(): void {
+    this.loading.set(true);
+  }
+
+  private applyAppSettings(settings: AppSettings): void {
+    this.opdsEnabled = settings.opdsServerEnabled ?? false;
+    this.komgaApiEnabled = settings.komgaApiEnabled ?? false;
+    this.komgaGroupUnknown = settings.komgaGroupUnknown ?? true;
+
+    if (this.opdsEnabled || this.komgaApiEnabled) {
+      if (!this.hasLoadedUsers) {
+        this.loadUsers();
+      }
+    } else {
+      this.users.set([]);
+      this.loading.set(false);
+      this.hasLoadedUsers = false;
+    }
+  }
+
+  private loadUsers(): void {
+    this.loading.set(true);
+    this.hasLoadedUsers = true;
+    this.opdsService.getUser().pipe(
+      takeUntilDestroyed(this.destroyRef),
+      catchError(err => {
+        console.error('Error loading users:', err);
+        this.showMessage('error', this.t.translate('common.error'), this.t.translate('settingsOpds.loadError'));
+        return of([]);
+      })
+    ).subscribe(users => {
+      this.users.set([...users]);
+      this.passwordVisibility = new Array(users.length).fill(false);
+      this.loading.set(false);
+    });
+  }
+
+  createUser(): void {
+    if (!this.newUser.username || !this.newUser.password) return;
+
+    this.opdsService.createUser(this.newUser).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: user => {
+        this.users.update(users => [...users, user]);
+        this.resetCreateUserDialog();
+        this.showMessage('success', this.t.translate('common.success'), this.t.translate('settingsOpds.createSuccess'));
+      },
+      error: err => {
+        console.error('Error creating user:', err);
+        const message = err?.error?.message || this.t.translate('settingsOpds.createError');
+        this.showMessage('error', this.t.translate('common.error'), message);
+      }
+    });
+  }
+
+  confirmDelete(user: OpdsUserV2): void {
+    this.confirmationService.confirm({
+      message: this.t.translate('settingsOpds.deleteConfirm', {username: user.username}),
+      header: this.t.translate('settingsOpds.deleteHeader'),
+      icon: 'pi pi-exclamation-triangle',
+      acceptButtonStyleClass: 'p-button-danger',
+      accept: () => this.deleteUser(user)
+    });
+  }
+
+  deleteUser(user: OpdsUserV2): void {
+    if (!user.id) return;
+
+    this.opdsService.deleteCredential(user.id).pipe(
+      takeUntilDestroyed(this.destroyRef),
+      catchError(err => {
+        console.error('Error deleting user:', err);
+        this.showMessage('error', this.t.translate('common.error'), this.t.translate('settingsOpds.deleteError'));
+        return of(null);
+      })
+    ).subscribe(() => {
+      this.users.update(users => users.filter(u => u.id !== user.id));
+      this.showMessage('success', this.t.translate('common.success'), this.t.translate('settingsOpds.deleteSuccess'));
+    });
+  }
+
+  cancelCreateUser(): void {
+    this.resetCreateUserDialog();
+  }
+
+  copyEndpoint(): void {
+    navigator.clipboard.writeText(this.opdsEndpoint).then(() => {
+      this.showMessage('success', this.t.translate('common.success'), this.t.translate('settingsOpds.opdsCopied'));
+    });
+  }
+
+  toggleOpdsServer(): void {
+    this.saveSetting(AppSettingKey.OPDS_SERVER_ENABLED, this.opdsEnabled);
+    if (this.opdsEnabled || this.komgaApiEnabled) {
+      this.loadUsers();
+    } else {
+      this.users.set([]);
+    }
+  }
+
+  toggleKomgaApi(): void {
+    this.saveKomgaSetting(AppSettingKey.KOMGA_API_ENABLED, this.komgaApiEnabled);
+    if (this.opdsEnabled || this.komgaApiEnabled) {
+      this.loadUsers();
+    } else {
+      this.users.set([]);
+    }
+  }
+
+  copyKomgaEndpoint(): void {
+    navigator.clipboard.writeText(this.komgaEndpoint).then(() => {
+      this.showMessage('success', this.t.translate('common.success'), this.t.translate('settingsOpds.komgaCopied'));
+    });
+  }
+
+  toggleKomgaGroupUnknown(): void {
+    this.appSettingsService.saveSettings([{key: AppSettingKey.KOMGA_GROUP_UNKNOWN, newValue: this.komgaGroupUnknown}]).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: () => {
+        const successMessage = (this.komgaGroupUnknown === true)
+          ? this.t.translate('settingsOpds.groupEnabled')
+          : this.t.translate('settingsOpds.groupDisabled');
+        this.showMessage('success', this.t.translate('settingsOpds.settingsSaved'), successMessage);
+      },
+      error: () => {
+        this.showMessage('error', this.t.translate('common.error'), this.t.translate('settingsOpds.settingsError'));
+      }
+    });
+  }
+
+  private saveSetting(key: string, value: unknown): void {
+    this.appSettingsService.saveSettings([{key, newValue: value}]).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: () => {
+        const successMessage = (value === true)
+          ? this.t.translate('settingsOpds.opdsEnabled')
+          : this.t.translate('settingsOpds.opdsDisabled');
+        this.showMessage('success', this.t.translate('settingsOpds.settingsSaved'), successMessage);
+      },
+      error: () => {
+        this.showMessage('error', this.t.translate('common.error'), this.t.translate('settingsOpds.settingsError'));
+      }
+    });
+  }
+
+  private saveKomgaSetting(key: string, value: unknown): void {
+    this.appSettingsService.saveSettings([{key, newValue: value}]).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: () => {
+        const successMessage = (value === true)
+          ? this.t.translate('settingsOpds.komgaEnabled')
+          : this.t.translate('settingsOpds.komgaDisabled');
+        this.showMessage('success', this.t.translate('settingsOpds.settingsSaved'), successMessage);
+      },
+      error: () => {
+        this.showMessage('error', this.t.translate('common.error'), this.t.translate('settingsOpds.settingsError'));
+      }
+    });
+  }
+
+  private resetCreateUserDialog(): void {
+    this.showCreateUserDialog = false;
+    this.newUser = {username: '', password: '', sortOrder: 'RECENT'};
+  }
+
+  private showMessage(severity: string, summary: string, detail: string): void {
+    this.messageService.add({severity, summary, detail});
+  }
+
+  getSortOrderLabel(sortOrder?: OpdsSortOrder): string {
+    if (!sortOrder) return this.t.translate('settingsOpds.sortOrders.recent');
+    const option = this.sortOrderOptions.find(o => o.value === sortOrder);
+    return option ? this.t.translate(option.translationKey) : this.t.translate('settingsOpds.sortOrders.recent');
+  }
+
+  startEdit(user: OpdsUserV2): void {
+    this.editingUserId = user.id;
+    this.editingSortOrder = user.sortOrder || 'RECENT';
+  }
+
+  cancelEdit(): void {
+    this.editingUserId = null;
+    this.editingSortOrder = null;
+  }
+
+  saveSortOrder(user: OpdsUserV2): void {
+    if (!this.editingSortOrder || !user.id) return;
+
+    this.opdsService.updateUser(user.id, this.editingSortOrder).pipe(
+      takeUntilDestroyed(this.destroyRef),
+      catchError(err => {
+        console.error('Error updating sort order:', err);
+        this.showMessage('error', this.t.translate('common.error'), this.t.translate('settingsOpds.sortUpdateError'));
+        return of(null);
+      })
+    ).subscribe(updatedUser => {
+      if (updatedUser) {
+        this.users.update(
+          users => users.map(
+            u => (u.id === user.id ? updatedUser : u)
+          )
+        );
+
+        this.showMessage('success', this.t.translate('common.success'), this.t.translate('settingsOpds.sortUpdateSuccess'));
+      }
+      this.cancelEdit();
+    });
+  }
+}

@@ -1,0 +1,125 @@
+@use '../../../../shared/styles/panel-shared' as panel;
+
+.book-sender-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.panel-header {
+  @include panel.panel-header;
+
+  flex-shrink: 0;
+}
+
+.dialog-content {
+  flex: 1;
+  padding: 1.3125rem;
+  background: var(--color-page);
+  border: 1px solid var(--color-border);
+  border-top: none;
+  border-bottom: none;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 8%);
+}
+
+.dialog-footer {
+  @include panel.dialog-footer;
+}
+
+.form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1.3125rem;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4375rem;
+}
+
+.field-label {
+  font-size: var(--app-text-sm);
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+:host ::ng-deep .full-width {
+  width: 100%;
+}
+
+.format-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4375rem;
+}
+
+.format-option {
+  display: flex;
+  align-items: center;
+  gap: 0.6563rem;
+  padding: 0.6563rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--color-surface-hover);
+    border-color: var(--color-primary);
+  }
+
+  &.selected {
+    background: var(--control-primary-bg);
+    border-color: var(--control-primary-border);
+  }
+}
+
+.format-info {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  flex: 1;
+}
+
+.format-type {
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.primary-badge {
+  font-size: 0.6125rem;
+  font-weight: 600;
+  padding: 0.1094rem 0.3281rem;
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.file-size {
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: var(--color-text-secondary);
+}
+
+.warning-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6563rem;
+  padding: 0.6563rem 0.875rem;
+  background: color-mix(in srgb, var(--color-warning) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 30%, transparent);
+  border-radius: 6px;
+  color: var(--color-warning);
+
+  i {
+    font-size: var(--app-text-base);
+    margin-top: 0.1094rem;
+  }
+
+  span {
+    font-size: 0.7438rem;
+    line-height: 1.4;
+  }
+}

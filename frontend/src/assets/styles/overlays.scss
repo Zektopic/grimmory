@@ -1,0 +1,226 @@
+@use "../layout/styles/layout/variables";
+
+/*
+ * Native CDK overlay hooks.
+ *
+ * CDK overlay panes/backdrops are attached outside component style scopes, so
+ * shared overlay classes that are not Optimus UI-specific live here.
+ */
+
+.command-palette-backdrop {
+  background: rgb(0 0 0 / 56%);
+}
+
+.cdk-overlay-backdrop.app-menu-sheet-backdrop {
+  background: rgb(0 0 0 / 40%);
+}
+
+.cdk-overlay-pane.command-palette-panel {
+  display: flex;
+  pointer-events: auto;
+}
+
+@media #{variables.$mobile-shell-media-query} {
+  .cdk-overlay-backdrop.command-palette-backdrop {
+    top: 3.0625rem;
+  }
+}
+
+.user-account-popover {
+  --menu-item-padding-block: 4px;
+  --menu-item-padding-inline: 10px;
+  --menu-item-min-height: 28px;
+  --menu-item-gap: var(--control-gap);
+  --menu-item-radius: 5px;
+  --menu-item-focus-ring: var(--control-focus-ring-color);
+  --menu-item-danger-bg-hover: color-mix(in srgb, var(--p-red-500) 12%, transparent);
+}
+
+.user-account-popover .menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--menu-item-gap);
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--menu-item-min-height);
+  padding: var(--menu-item-padding-block) var(--menu-item-padding-inline);
+  border: 0;
+  background: transparent;
+  border-radius: var(--menu-item-radius);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.user-account-popover .menu-item:hover {
+  background-color: var(--color-surface-hover);
+}
+
+.user-account-popover .menu-item:focus-visible {
+  background-color: var(--color-surface-hover);
+  box-shadow: inset 0 0 0 1px var(--menu-item-focus-ring);
+  outline: none;
+}
+
+.user-account-popover .menu-item[aria-disabled="true"] {
+  color: var(--color-text-secondary);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.user-account-popover .menu-item i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--control-icon-size);
+  height: var(--control-icon-size);
+  font-size: var(--app-text-base);
+  color: var(--color-surface-500);
+}
+
+@media #{variables.$mobile-shell-media-query} {
+  .user-account-popover {
+    --menu-item-padding-block: 8px;
+    --menu-item-padding-inline: 12px;
+    --menu-item-min-height: 40px;
+    --menu-item-gap: 10px;
+  }
+}
+
+.cdk-overlay-pane.user-account-popover-pane {
+  pointer-events: auto;
+}
+
+.cdk-overlay-pane.sidebar-notification-popover-pane {
+  pointer-events: auto;
+}
+
+.sidebar-notification-popover,
+.user-account-popover {
+  max-width: calc(100vw - 0.875rem);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--control-radius);
+  box-shadow:
+    0 18px 48px rgb(0 0 0 / 28%),
+    0 4px 16px rgb(0 0 0 / 18%);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.sidebar-notification-popover {
+  display: block;
+}
+
+.user-account-popover {
+  display: flex;
+  flex-direction: column;
+  width: min(15.3125rem, calc(100vw - 0.875rem));
+}
+
+.user-account-popover-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4375rem;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.6563rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.user-account-popover-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4375rem;
+  width: 100%;
+}
+
+.user-account-popover-header h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4375rem;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--app-text-lg);
+  font-weight: 600;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.user-account-popover-header h2 span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-text-secondary);
+  font-size: var(--app-text-xs);
+  font-weight: 500;
+}
+
+.user-account-popover-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-surface-500);
+  font-size: var(--app-text-base);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.user-account-popover-icon-button:hover,
+.user-account-popover-icon-button:focus-visible {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+  outline: none;
+}
+
+.user-account-popover-header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4375rem;
+}
+
+.user-account-popover-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2188rem;
+  padding: 0.3281rem;
+}
+
+.user-account-popover .user-account-popover-action {
+  background: transparent;
+  color: var(--color-text);
+}
+
+.user-account-popover-footer {
+  padding: 0.3281rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.user-account-popover .user-account-popover-logout {
+  background: transparent;
+  color: var(--p-red-400);
+}
+
+.user-account-popover .user-account-popover-logout i {
+  color: currentcolor;
+}
+
+.user-account-popover .user-account-popover-logout:hover,
+.user-account-popover .user-account-popover-logout:focus-visible {
+  background: var(--menu-item-danger-bg-hover);
+  outline: none;
+}

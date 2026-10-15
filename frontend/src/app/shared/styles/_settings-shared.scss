@@ -1,0 +1,525 @@
+// Shared Settings Component Styles
+// This file provides consistent styling for all settings pages
+// Benchmark: file-naming-pattern and metadata-persistence-settings components
+
+// ============================================================================
+// TYPOGRAPHY VARIABLES
+// ============================================================================
+$settings-page-title-size: 1.2031rem;
+$settings-page-title-weight: 700;
+$settings-page-description-size: 0.7656rem;
+$settings-section-title-size: 1.0938rem;
+$settings-section-title-weight: 600;
+$settings-section-title-icon-size: 0.9844rem;
+$settings-section-description-size: 0.7656rem;
+$settings-label-size: 0.8203rem;
+$settings-label-weight: 500;
+$settings-description-size: 0.7656rem;
+
+// ============================================================================
+// SPACING VARIABLES
+// ============================================================================
+$settings-card-padding: 1.3125rem;
+$settings-card-padding-mobile: 0.875rem;
+$settings-card-gap: 1.0938rem;
+$settings-card-gap-mobile: 0.875rem;
+$settings-card-border-radius: 8px;
+$settings-section-body-padding-left: 0.875rem;
+$settings-section-body-padding-left-mobile: 0.4375rem;
+$settings-section-body-gap: 0.875rem;
+$settings-item-padding: 0.7656rem 0.875rem;
+$settings-item-padding-mobile: 0.6563rem;
+$settings-item-border-radius: 6px;
+$settings-item-border-left-width: 3px;
+
+// ============================================================================
+// PAGE CONTAINER MIXIN
+// For standalone pages with their own scrolling area
+// ============================================================================
+@mixin settings-page-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.3125rem;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.4375rem 1.3125rem;
+}
+
+// ============================================================================
+// PAGE HEADER
+// Include this mixin at root level to get the .settings-header class
+// ============================================================================
+@mixin settings-page-header {
+  .settings-header {
+    margin-top: 0.875rem;
+    margin-bottom: 1.3125rem;
+    border-bottom: 1px solid var(--p-content-border-color);
+  }
+}
+
+@mixin settings-page-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  font-size: $settings-page-title-size;
+  font-weight: $settings-page-title-weight;
+  color: var(--color-text);
+  margin: 0 0 0.4375rem;
+
+  .pi {
+    color: var(--color-primary);
+    font-size: 1.0938rem;
+  }
+}
+
+@mixin settings-page-description {
+  font-size: $settings-page-description-size;
+  line-height: 1.5;
+  color: var(--p-text-muted-color);
+  margin-bottom: 0.4375rem;
+}
+
+// ============================================================================
+// SETTINGS CARD MIXIN
+// The main card container for a group of related settings
+// ============================================================================
+@mixin settings-card {
+  display: flex;
+  flex-direction: column;
+  gap: $settings-card-gap;
+  background: var(--color-card);
+  border: 1px solid var(--p-content-border-color);
+  border-radius: $settings-card-border-radius;
+  padding: $settings-card-padding;
+
+  @media (width <= 768px) {
+    padding: $settings-card-padding-mobile;
+    gap: $settings-card-gap-mobile;
+  }
+}
+
+// ============================================================================
+// SECTION HEADER MIXIN
+// For section headers inside cards (with icon and description)
+// ============================================================================
+@mixin settings-section-header {
+  margin-bottom: 0.2188rem;
+}
+
+@mixin settings-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  font-size: $settings-section-title-size;
+  font-weight: $settings-section-title-weight;
+  color: var(--color-text);
+  margin: 0 0 0.4375rem;
+
+  .pi {
+    color: var(--color-primary);
+    font-size: $settings-section-title-icon-size;
+  }
+}
+
+@mixin settings-section-description {
+  font-size: $settings-section-description-size;
+  line-height: 1.5;
+  color: var(--p-text-muted-color);
+  margin: 0;
+}
+
+// ============================================================================
+// SECTION BODY MIXIN
+// Container for setting items within a card
+// ============================================================================
+@mixin settings-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: $settings-section-body-gap;
+  padding-left: $settings-section-body-padding-left;
+
+  @media (width <= 768px) {
+    padding-left: $settings-section-body-padding-left-mobile;
+  }
+}
+
+// ============================================================================
+// SETTING ITEM MIXIN
+// Individual setting row with left border accent
+// ============================================================================
+@mixin settings-item {
+  padding: $settings-item-padding;
+  border-radius: $settings-item-border-radius;
+  border-left: $settings-item-border-left-width solid var(--color-primary);
+  background: color-mix(in srgb, var(--color-card) 35%, var(--color-page));
+  transition: border-color 0.2s ease, background 0.2s ease;
+
+  &:hover {
+    background: color-mix(in srgb, var(--color-card) 20%, var(--color-page));
+  }
+
+  @media (width <= 768px) {
+    padding: $settings-item-padding-mobile;
+  }
+}
+
+// ============================================================================
+// SETTING HEADER MIXIN
+// Header row for a setting (toggle + label)
+// ============================================================================
+@mixin settings-item-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6563rem;
+  margin-bottom: 0.2188rem;
+
+  .pi {
+    color: var(--color-primary);
+    font-size: var(--app-text-base);
+  }
+}
+
+@mixin settings-item-header-standalone {
+  margin-bottom: 0.2188rem;
+}
+
+// ============================================================================
+// SETTING LABEL MIXIN
+// ============================================================================
+@mixin settings-label {
+  font-weight: $settings-label-weight;
+  color: var(--color-text);
+  font-size: $settings-label-size;
+}
+
+// ============================================================================
+// SETTING DESCRIPTION MIXIN
+// ============================================================================
+@mixin settings-item-description {
+  color: var(--p-text-muted-color);
+  font-size: $settings-description-size;
+  line-height: 1.4;
+  margin: 0;
+}
+
+// ============================================================================
+// SETTING NOTE MIXIN
+// ============================================================================
+@mixin settings-note {
+  display: block;
+  margin-top: 0.2188rem;
+  font-style: italic;
+  opacity: 0.85;
+}
+
+// ============================================================================
+// SETTING OPTIONS MIXIN
+// Expandable options section below a setting
+// ============================================================================
+@mixin settings-options {
+  margin-top: 0.6563rem;
+  padding-top: 0.6563rem;
+  border-top: 1px dashed var(--p-content-border-color);
+}
+
+// ============================================================================
+// NOTICE MIXINS
+// Warning and info notices
+// ============================================================================
+@mixin settings-notice-base {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6563rem;
+  font-size: $settings-section-description-size;
+  line-height: 1.5;
+  padding: 0.6563rem 0.875rem;
+  border-radius: 6px;
+  color: var(--color-text);
+
+  strong {
+    font-weight: 600;
+  }
+
+  @media (width <= 768px) {
+    padding: 0.5469rem 0.6563rem;
+    font-size: $settings-description-size;
+  }
+}
+
+@mixin settings-warning-notice {
+  @include settings-notice-base;
+
+  background: color-mix(in srgb, var(--color-card) 85%, var(--color-red-600) 15%);
+  border-left-width: 3px;
+  border-left-style: solid;
+
+  .pi-exclamation-triangle {
+    margin-top: 0.1094rem;
+    flex-shrink: 0;
+  }
+}
+
+@mixin settings-info-notice {
+  @include settings-notice-base;
+
+  background: color-mix(in srgb, var(--color-card) 90%, var(--p-blue-600) 10%);
+  border-left: 3px solid var(--p-blue-400);
+
+  .pi-info-circle {
+    color: var(--p-blue-400);
+    margin-top: 0.1094rem;
+    flex-shrink: 0;
+  }
+
+  strong {
+    color: var(--p-blue-300);
+  }
+}
+
+// ============================================================================
+// SECTION DIVIDER
+// Include this mixin at root level to get the .section-divider class
+// ============================================================================
+@mixin settings-section-divider {
+  .section-divider {
+    padding-top: 1.3125rem;
+    padding-bottom: 0.4375rem;
+
+    hr {
+      border: none;
+      border-top: 1px solid var(--p-content-border-color);
+      margin: 0;
+    }
+  }
+}
+
+// ============================================================================
+// ACTIONS ROW MIXIN
+// For save/cancel buttons at the bottom of a section
+// ============================================================================
+@mixin settings-actions-row {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 0.4375rem;
+
+  @media (width <= 768px) {
+    p-button {
+      width: 100%;
+    }
+  }
+}
+
+// ============================================================================
+// INPUT GROUP MIXINS
+// Common input patterns
+// ============================================================================
+@mixin settings-filesize-input {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+
+  label {
+    font-size: $settings-description-size;
+    color: var(--p-text-muted-color);
+    white-space: nowrap;
+  }
+
+  .filesize-field {
+    width: 70px;
+    padding: 0.3281rem 0.4375rem;
+    border: 1px solid var(--p-content-border-color);
+    border-radius: 4px;
+    background: var(--color-card);
+    color: var(--color-text);
+    font-size: $settings-section-description-size;
+    text-align: center;
+    transition: border-color 0.2s ease;
+
+    &:hover {
+      border-color: var(--color-primary);
+    }
+
+    &:focus {
+      outline: none;
+      border-color: var(--color-primary);
+    }
+  }
+
+  .filesize-unit {
+    font-size: $settings-description-size;
+    color: var(--p-text-muted-color);
+  }
+
+  .pi-info-circle {
+    color: var(--p-text-muted-color);
+    font-size: $settings-section-description-size;
+    cursor: help;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+}
+
+@mixin settings-select-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  flex-wrap: wrap;
+
+  p-select {
+    min-width: 140px;
+  }
+
+  @media (width <= 768px) {
+    flex-direction: column;
+    align-items: stretch;
+
+    p-select {
+      min-width: 100%;
+    }
+  }
+}
+
+// ============================================================================
+// TABLE STYLES MIXIN
+// For tables within settings cards
+// ============================================================================
+@mixin settings-table {
+  width: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+
+  ::ng-deep {
+    .p-datatable {
+      border: 1px solid var(--p-content-border-color);
+      border-radius: 6px;
+      overflow: hidden;
+
+      .p-datatable-thead > tr > th {
+        font-weight: 600;
+        padding: 0.6563rem;
+        background: color-mix(in srgb, var(--color-text) 3%, transparent);
+        border-bottom: 1px solid var(--p-content-border-color);
+        font-size: $settings-description-size;
+      }
+
+      .p-datatable-tbody > tr {
+        &:hover {
+          background: color-mix(in srgb, var(--color-text) 3%, transparent);
+        }
+
+        > td {
+          padding: 0.5469rem;
+          border-bottom: 1px solid color-mix(in srgb, var(--p-content-border-color) 50%, transparent);
+        }
+
+        &:last-child > td {
+          border-bottom: none;
+        }
+      }
+    }
+  }
+}
+
+// ============================================================================
+// ERROR TEXT MIXIN
+// ============================================================================
+@mixin settings-error-text {
+  color: var(--p-red-400);
+  font-size: $settings-section-description-size;
+}
+
+// ============================================================================
+// ACCESS DENIED CARD MIXIN
+// For restricted access sections
+// ============================================================================
+@mixin settings-access-denied-card {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 1.3125rem;
+  border-radius: $settings-card-border-radius;
+  background: color-mix(in srgb, var(--color-card) 85%, var(--p-red-600) 15%);
+  border: 1px solid var(--p-content-border-color);
+  border-left: 3px solid var(--p-red-500);
+  max-width: 500px;
+
+  .pi {
+    font-size: 1.3125rem;
+    flex-shrink: 0;
+    color: var(--p-red-400);
+  }
+}
+
+@mixin settings-access-denied-content {
+  h3 {
+    margin: 0 0 0.4375rem;
+    font-size: var(--app-text-base);
+    font-weight: $settings-section-title-weight;
+    color: var(--p-red-300);
+  }
+
+  p {
+    margin: 0;
+    font-size: $settings-section-description-size;
+    line-height: 1.5;
+    color: var(--p-text-muted-color);
+  }
+}
+
+// ============================================================================
+// BUTTON GROUP MIXIN
+// For toggle button selections
+// ============================================================================
+@mixin settings-button-group {
+  display: flex;
+  gap: 0.4375rem;
+  flex-wrap: wrap;
+
+  .option-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3281rem;
+    padding: 0.4375rem 0.6563rem;
+    border-radius: 0.3281rem;
+    border: 1.5px solid color-mix(in srgb, var(--color-text) 20%, transparent);
+    background: color-mix(in srgb, var(--color-text) 5%, transparent);
+    color: var(--color-text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: $settings-description-size;
+    font-weight: $settings-label-weight;
+    min-width: 3.9375rem;
+
+    i {
+      font-size: $settings-section-description-size;
+    }
+
+    .option-text {
+      white-space: nowrap;
+    }
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgb(0 0 0 / 10%);
+      border-color: color-mix(in srgb, var(--color-primary) 40%, transparent);
+    }
+
+    &.selected {
+      border-color: var(--color-primary);
+      background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+      color: var(--color-primary);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 15%, transparent);
+
+      &:hover {
+        transform: translateY(-2px);
+      }
+    }
+  }
+}

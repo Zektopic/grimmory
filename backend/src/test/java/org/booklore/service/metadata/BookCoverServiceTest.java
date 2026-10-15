@@ -1,0 +1,1229 @@
+package org.booklore.service.metadata;
+
+import org.booklore.config.AppProperties;
+import org.booklore.exception.APIException;
+import org.booklore.model.dto.settings.AppSettings;
+import org.booklore.model.dto.settings.MetadataPersistenceSettings;
+import org.booklore.model.entity.*;
+import org.booklore.model.enums.BookFileType;
+import org.booklore.repository.BookRepository;
+import org.booklore.repository.projection.BookCoverUpdateProjection;
+import org.booklore.service.NotificationService;
+import org.booklore.service.appsettings.AppSettingService;
+import org.booklore.service.book.BookQueryService;
+import org.booklore.service.fileprocessor.BookFileProcessor;
+import org.booklore.service.fileprocessor.BookFileProcessorRegistry;
+import org.booklore.service.metadata.sidecar.SidecarMetadataWriter;
+import org.booklore.service.metadata.writer.MetadataWriter;
+import org.booklore.service.metadata.writer.MetadataWriterFactory;
+import org.booklore.service.file.FileFingerprint;
+import org.booklore.util.FileService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.booklore.config.security.service.AuthenticationService;
+import org.booklore.model.dto.BookLoreUser;
+import org.booklore.model.enums.PermissionType;
+import org.booklore.model.websocket.LogNotification;
+import org.booklore.model.websocket.Topic;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.MockedStatic;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.ByteArrayInputStream;
+import java.util.*;
+import java.util.concurrent.Executor;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+import java.io.IOException;
+
+@ExtendWith(MockitoExtension.class)
+class BookCoverServiceTest {
+
+    @Mock private AppProperties appProperties;
+    @Mock private BookRepository bookRepository;
+    @Mock private NotificationService notificationService;
+    @Mock private AppSettingService appSettingService;
+    @Mock private FileService fileService;
+    @Mock private BookFileProcessorRegistry processorRegistry;
+    @Mock private BookQueryService bookQueryService;
+    @Mock private CoverImageGenerator coverImageGenerator;
+    @Mock private MetadataWriterFactory metadataWriterFactory;
+    @Mock private SidecarMetadataWriter sidecarMetadataWriter;
+    @Mock private TransactionTemplate transactionTemplate;
+    @Mock private Executor taskExecutor;
+    @Mock private AuthenticationService authenticationService;
+    @Mock private AppSettings appSettings;
+
+    @InjectMocks
+    private BookCoverService service;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(appProperties.isLocalStorage()).thenReturn(true);
+        lenient().when(authenticationService.getAuthenticatedUser()).thenReturn(BookLoreUser.builder().username("testuser").build());
+    }
+
+    private BookEntity buildBook(long id, boolean coverLocked) {
+        BookMetadataEntity metadata = BookMetadataEntity.builder()
+                .title("Test Book")
+                .coverLocked(coverLocked)
+                .build();
+        return BookEntity.builder()
+                .id(id)
+                .metadata(metadata)
+                .bookFiles(new HashSet<>())
+                .build();
+    }
+
+    private BookEntity buildBookWithAudiobookLock(long id, boolean audiobookCoverLocked) {
+        BookMetadataEntity metadata = BookMetadataEntity.builder()
+                .title("Test Audiobook")
+                .audiobookCoverLocked(audiobookCoverLocked)
+                .coverLocked(false)
+                .build();
+        return BookEntity.builder()
+                .id(id)
+                .metadata(metadata)
+                .bookFiles(new HashSet<>())
+                .build();
+    }
+
+    @Nested
+    class BookNotFound {
+
+        @Test
+        void generateCustomCoverThrowsWhenBookNotFound() {
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.generateCustomCover(1L))
+                    .isInstanceOf(APIException.class)
+                    .hasMessageContaining("Book not found");
+        }
+
+        @Test
+        void updateCoverFromFileThrowsWhenBookNotFound() {
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.empty());
+            MultipartFile file = mock(MultipartFile.class);
+
+            assertThatThrownBy(() -> service.updateCoverFromFile(1L, file))
+                    .isInstanceOf(APIException.class);
+        }
+
+        @Test
+        void updateCoverFromUrlThrowsWhenBookNotFound() {
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.updateCoverFromUrl(1L, "http://example.com/cover.jpg"))
+                    .isInstanceOf(APIException.class);
+        }
+
+        @Test
+        void regenerateCoverThrowsWhenBookNotFound() {
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.regenerateCover(1L))
+                    .isInstanceOf(APIException.class);
+        }
+    }
+
+    @Nested
+    class CoverLockChecks {
+
+        @Test
+        void generateCustomCoverThrowsWhenCoverLocked() {
+            BookEntity book = buildBook(1L, true);
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+
+            assertThatThrownBy(() -> service.generateCustomCover(1L))
+                    .isInstanceOf(APIException.class)
+                    .hasMessageContaining("locked");
+        }
+
+        @Test
+        void updateCoverFromFileThrowsWhenCoverLocked() {
+            BookEntity book = buildBook(1L, true);
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+            MultipartFile file = mock(MultipartFile.class);
+
+            assertThatThrownBy(() -> service.updateCoverFromFile(1L, file))
+                    .isInstanceOf(APIException.class)
+                    .hasMessageContaining("locked");
+        }
+
+        @Test
+        void updateCoverFromUrlThrowsWhenCoverLocked() {
+            BookEntity book = buildBook(1L, true);
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+
+            assertThatThrownBy(() -> service.updateCoverFromUrl(1L, "http://example.com"))
+                    .isInstanceOf(APIException.class)
+                    .hasMessageContaining("locked");
+        }
+
+        @Test
+        void regenerateCoverThrowsWhenCoverLocked() {
+            BookEntity book = buildBook(1L, true);
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+
+            assertThatThrownBy(() -> service.regenerateCover(1L))
+                    .isInstanceOf(APIException.class)
+                    .hasMessageContaining("locked");
+        }
+    }
+
+    @Nested
+    class AudiobookCoverLockChecks {
+
+        @Test
+        void updateAudiobookCoverFromFileThrowsWhenLocked() {
+            BookEntity book = buildBookWithAudiobookLock(1L, true);
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+            MultipartFile file = mock(MultipartFile.class);
+
+            assertThatThrownBy(() -> service.updateAudiobookCoverFromFile(1L, file))
+                    .isInstanceOf(APIException.class)
+                    .hasMessageContaining("locked");
+        }
+
+        @Test
+        void updateAudiobookCoverFromUrlThrowsWhenLocked() {
+            BookEntity book = buildBookWithAudiobookLock(1L, true);
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+
+            assertThatThrownBy(() -> service.updateAudiobookCoverFromUrl(1L, "http://example.com"))
+                    .isInstanceOf(APIException.class)
+                    .hasMessageContaining("locked");
+        }
+
+        @Test
+        void regenerateAudiobookCoverThrowsWhenLocked() {
+            BookEntity book = buildBookWithAudiobookLock(1L, true);
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+
+            assertThatThrownBy(() -> service.regenerateAudiobookCover(1L))
+                    .isInstanceOf(APIException.class)
+                    .hasMessageContaining("locked");
+        }
+
+        @Test
+        void generateCustomAudiobookCoverThrowsWhenLocked() {
+            BookEntity book = buildBookWithAudiobookLock(1L, true);
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+
+            assertThatThrownBy(() -> service.generateCustomAudiobookCover(1L))
+                    .isInstanceOf(APIException.class)
+                    .hasMessageContaining("locked");
+        }
+    }
+
+    @Nested
+    class RegenerateCover {
+
+        @Test
+        void throwsWhenNoEbookFileFound() {
+            BookEntity book = buildBook(1L, false);
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+
+            assertThatThrownBy(() -> service.regenerateCover(1L))
+                    .isInstanceOf(APIException.class)
+                    .hasMessageContaining("no ebook file found");
+        }
+
+        @Test
+        void throwsWhenProcessorFailsToRegenerate() {
+            BookEntity book = buildBook(1L, false);
+            BookFileEntity ebookFile = BookFileEntity.builder()
+                    .bookType(BookFileType.EPUB)
+                    .isBookFormat(true)
+                    .build();
+            book.setBookFiles(Set.of(ebookFile));
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+
+            BookFileProcessor processor = mock(BookFileProcessor.class);
+            when(processorRegistry.getProcessorOrThrow(BookFileType.EPUB)).thenReturn(processor);
+            when(processor.generateCover(book, ebookFile)).thenReturn(false);
+
+            assertThatThrownBy(() -> service.regenerateCover(1L))
+                    .isInstanceOf(APIException.class)
+                    .hasMessageContaining("no embedded cover image found");
+        }
+
+        @Test
+        void successfulRegenerationUpdatesCoverMetadata() {
+            BookEntity book = buildBook(1L, false);
+            BookFileEntity ebookFile = BookFileEntity.builder()
+                    .bookType(BookFileType.EPUB)
+                    .isBookFormat(true)
+                    .build();
+            book.setBookFiles(Set.of(ebookFile));
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+
+            BookFileProcessor processor = mock(BookFileProcessor.class);
+            when(processorRegistry.getProcessorOrThrow(BookFileType.EPUB)).thenReturn(processor);
+            when(processor.generateCover(book, ebookFile)).thenReturn(true);
+
+            service.regenerateCover(1L);
+
+            assertThat(book.getMetadata().getCoverUpdatedOn()).isNotNull();
+            assertThat(book.getMetadataUpdatedAt()).isNotNull();
+            assertThat(book.getBookCoverHash()).isNotNull();
+            verify(bookRepository).save(book);
+        }
+    }
+
+    @Nested
+    class RegenerateAudiobookCover {
+
+        @Test
+        void throwsWhenNoAudiobookFileFound() {
+            BookEntity book = buildBookWithAudiobookLock(1L, false);
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+
+            assertThatThrownBy(() -> service.regenerateAudiobookCover(1L))
+                    .isInstanceOf(APIException.class)
+                    .hasMessageContaining("no audiobook file found");
+        }
+
+        @Test
+        void throwsWhenProcessorFailsToExtractCover() {
+            BookEntity book = buildBookWithAudiobookLock(1L, false);
+            BookFileEntity audiobookFile = BookFileEntity.builder()
+                    .bookType(BookFileType.AUDIOBOOK)
+                    .build();
+            book.setBookFiles(Set.of(audiobookFile));
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+
+            BookFileProcessor processor = mock(BookFileProcessor.class);
+            when(processorRegistry.getProcessorOrThrow(BookFileType.AUDIOBOOK)).thenReturn(processor);
+            when(processor.generateAudiobookCover(book)).thenReturn(false);
+
+            assertThatThrownBy(() -> service.regenerateAudiobookCover(1L))
+                    .isInstanceOf(APIException.class)
+                    .hasMessageContaining("no embedded cover image found");
+        }
+    }
+
+    @Nested
+    class FormatPrioritySelection {
+
+        @Test
+        void selectsEbookByFormatPrioritySkippingAudiobook() {
+            BookEntity book = buildBook(1L, false);
+
+            BookFileEntity audiobookFile = BookFileEntity.builder()
+                    .bookType(BookFileType.AUDIOBOOK)
+                    .isBookFormat(false)
+                    .build();
+            BookFileEntity pdfFile = BookFileEntity.builder()
+                    .bookType(BookFileType.PDF)
+                    .isBookFormat(true)
+                    .build();
+            BookFileEntity epubFile = BookFileEntity.builder()
+                    .bookType(BookFileType.EPUB)
+                    .isBookFormat(true)
+                    .build();
+            book.setBookFiles(Set.of(audiobookFile, pdfFile, epubFile));
+
+            LibraryEntity library = LibraryEntity.builder()
+                    .formatPriority(List.of(BookFileType.AUDIOBOOK, BookFileType.EPUB, BookFileType.PDF))
+                    .build();
+            book.setLibrary(library);
+
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+
+            BookFileProcessor processor = mock(BookFileProcessor.class);
+            when(processorRegistry.getProcessorOrThrow(BookFileType.EPUB)).thenReturn(processor);
+            when(processor.generateCover(eq(book), any())).thenReturn(true);
+
+            service.regenerateCover(1L);
+
+            verify(processorRegistry).getProcessorOrThrow(BookFileType.EPUB);
+        }
+
+        @Test
+        void fallsBackToFirstNonAudiobookFileWhenNoPriorityMatch() {
+            BookEntity book = buildBook(1L, false);
+
+            BookFileEntity audiobookFile = BookFileEntity.builder()
+                    .bookType(BookFileType.AUDIOBOOK)
+                    .build();
+            BookFileEntity pdfFile = BookFileEntity.builder()
+                    .bookType(BookFileType.PDF)
+                    .isBookFormat(true)
+                    .build();
+            book.setBookFiles(Set.of(audiobookFile, pdfFile));
+            book.setLibrary(LibraryEntity.builder().formatPriority(null).build());
+
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+
+            BookFileProcessor processor = mock(BookFileProcessor.class);
+            when(processorRegistry.getProcessorOrThrow(BookFileType.PDF)).thenReturn(processor);
+            when(processor.generateCover(eq(book), any())).thenReturn(true);
+
+            service.regenerateCover(1L);
+
+            verify(processorRegistry).getProcessorOrThrow(BookFileType.PDF);
+        }
+    }
+
+    @Nested
+    class GenerateCustomCover {
+
+        @Test
+        void generatesCoverWithTitleAndAuthor() {
+            BookEntity book = buildBook(1L, false);
+            AuthorEntity author = AuthorEntity.builder().name("Jane Doe").build();
+            book.getMetadata().setAuthors(List.of(author));
+            book.setBookFiles(new HashSet<>());
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+            when(coverImageGenerator.generateCover("Test Book", "Jane Doe")).thenReturn(new byte[]{1, 2, 3});
+            when(bookRepository.findCoverUpdateInfoByIds(any())).thenReturn(List.of());
+
+            service.generateCustomCover(1L);
+
+            verify(coverImageGenerator).generateCover("Test Book", "Jane Doe");
+            verify(fileService).createThumbnailFromBytes(eq(1L), any());
+            verify(bookRepository).save(book);
+        }
+    }
+
+    @Nested
+    class BulkCoverFromFile {
+
+        @Test
+        void filtersOutLockedBooksForBulkOperations() {
+            when(appSettingService.getAppSettings()).thenReturn(appSettings);
+            when(appSettings.getMaxFileUploadSizeInMb()).thenReturn(5);
+
+            BookEntity unlocked = buildBook(1L, false);
+            BookEntity locked = buildBook(2L, true);
+
+            when(bookQueryService.findAllWithMetadataByIds(Set.of(1L, 2L)))
+                    .thenReturn(List.of(unlocked, locked));
+
+            MultipartFile file = mock(MultipartFile.class);
+            when(file.isEmpty()).thenReturn(false);
+            when(file.getSize()).thenReturn(1024L);
+            try {
+                when(file.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0})); // JPEG
+                when(file.getBytes()).thenReturn(new byte[]{1, 2, 3});
+            } catch (Exception _) {}
+
+            service.updateCoverFromFileForBooks(Set.of(1L, 2L), file);
+
+            verify(bookQueryService).findAllWithMetadataByIds(Set.of(1L, 2L));
+        }
+    }
+
+    @Nested
+    class FileValidation {
+
+        @Test
+        void rejectsEmptyFile() {
+            MultipartFile file = mock(MultipartFile.class);
+            when(file.isEmpty()).thenReturn(true);
+
+            assertThatThrownBy(() -> service.updateCoverFromFileForBooks(Set.of(1L), file))
+                    .isInstanceOf(APIException.class)
+                    .hasMessageContaining("empty");
+        }
+
+        @Test
+        void rejectsNonImageContentType() throws Exception {
+            when(appSettingService.getAppSettings()).thenReturn(appSettings);
+            when(appSettings.getMaxFileUploadSizeInMb()).thenReturn(5);
+
+            MultipartFile file = mock(MultipartFile.class);
+            when(file.isEmpty()).thenReturn(false);
+            when(file.getSize()).thenReturn(1024L);
+            when(file.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[]{1, 2, 3}));
+
+            assertThatThrownBy(() -> service.updateCoverFromFileForBooks(Set.of(1L), file))
+                    .isInstanceOf(APIException.class)
+                    .hasMessageContaining("JPEG and PNG");
+        }
+
+        @Test
+        void rejectsFileLargerThanLimit() {
+            when(appSettingService.getAppSettings()).thenReturn(appSettings);
+            when(appSettings.getMaxFileUploadSizeInMb()).thenReturn(5);
+
+            MultipartFile file = mock(MultipartFile.class);
+            when(file.isEmpty()).thenReturn(false);
+            when(file.getSize()).thenReturn(6L * 1024 * 1024);
+
+            assertThatThrownBy(() -> service.updateCoverFromFileForBooks(Set.of(1L), file))
+                    .isInstanceOf(APIException.class)
+                    .hasMessageContaining("exceeds");
+        }
+
+        @Test
+        void acceptsJpegFile() {
+            when(appSettingService.getAppSettings()).thenReturn(appSettings);
+            when(appSettings.getMaxFileUploadSizeInMb()).thenReturn(5);
+
+            MultipartFile file = mock(MultipartFile.class);
+            when(file.isEmpty()).thenReturn(false);
+            when(file.getSize()).thenReturn(1024L);
+            try {
+                when(file.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0}));
+                when(file.getBytes()).thenReturn(new byte[]{1, 2, 3});
+            } catch (Exception _) {}
+
+            when(bookQueryService.findAllWithMetadataByIds(any())).thenReturn(List.of());
+
+            service.updateCoverFromFileForBooks(Set.of(1L), file);
+        }
+
+        @Test
+        void acceptsPngFile() {
+            when(appSettingService.getAppSettings()).thenReturn(appSettings);
+            when(appSettings.getMaxFileUploadSizeInMb()).thenReturn(5);
+
+            MultipartFile file = mock(MultipartFile.class);
+            when(file.isEmpty()).thenReturn(false);
+            when(file.getSize()).thenReturn(1024L);
+            try {
+                when(file.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}));
+                when(file.getBytes()).thenReturn(new byte[]{1, 2, 3});
+            } catch (Exception _) {}
+
+            when(bookQueryService.findAllWithMetadataByIds(any())).thenReturn(List.of());
+
+            service.updateCoverFromFileForBooks(Set.of(1L), file);
+        }
+
+        @Test
+        void rejectsIOExceptionOnRead() throws Exception {
+            when(appSettingService.getAppSettings()).thenReturn(appSettings);
+            when(appSettings.getMaxFileUploadSizeInMb()).thenReturn(5);
+
+            MultipartFile file = mock(MultipartFile.class);
+            when(file.isEmpty()).thenReturn(false);
+            when(file.getSize()).thenReturn(1024L);
+            when(file.getInputStream()).thenThrow(new IOException("Test error"));
+
+            assertThatThrownBy(() -> service.updateCoverFromFileForBooks(Set.of(1L), file))
+                    .isInstanceOf(APIException.class)
+                    .hasMessageContaining("Failed to read");
+        }
+    }
+
+    @Nested
+    class UpdateCoverFromUrl {
+
+        @Test
+        void successfullyUpdatesCoverFromUrl() {
+            BookEntity book = buildBook(1L, false);
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+            when(bookRepository.findCoverUpdateInfoByIds(any())).thenReturn(List.of());
+
+            service.updateCoverFromUrl(1L, "https://example.com/cover.jpg");
+
+            verify(fileService).createThumbnailFromUrl(1L, "https://example.com/cover.jpg");
+            verify(bookRepository).save(book);
+            assertThat(book.getMetadata().getCoverUpdatedOn()).isNotNull();
+            assertThat(book.getBookCoverHash()).isNotNull();
+        }
+    }
+
+    @Nested
+    class UpdateCoverFromFileSuccess {
+
+        @Test
+        void successfullyUpdatesCoverFromFile() {
+            BookEntity book = buildBook(1L, false);
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+            when(bookRepository.findCoverUpdateInfoByIds(any())).thenReturn(List.of());
+            MultipartFile file = mock(MultipartFile.class);
+
+            service.updateCoverFromFile(1L, file);
+
+            verify(fileService).createThumbnailFromFile(1L, file);
+            verify(bookRepository).save(book);
+            assertThat(book.getMetadata().getCoverUpdatedOn()).isNotNull();
+        }
+    }
+
+    @Nested
+    class UpdateAudiobookCoverFromFile {
+
+        @Test
+        void successfullyUpdatesCoverFromFile() {
+            BookEntity book = buildBookWithAudiobookLock(1L, false);
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+            when(bookRepository.findCoverUpdateInfoByIds(any())).thenReturn(List.of());
+            MultipartFile file = mock(MultipartFile.class);
+
+            service.updateAudiobookCoverFromFile(1L, file);
+
+            verify(fileService).createAudiobookThumbnailFromFile(1L, file);
+            verify(bookRepository).save(book);
+            assertThat(book.getMetadata().getAudiobookCoverUpdatedOn()).isNotNull();
+            assertThat(book.getAudiobookCoverHash()).isNotNull();
+        }
+
+        @Test
+        void throwsWhenBookNotFound() {
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.empty());
+            MultipartFile file = mock(MultipartFile.class);
+
+            assertThatThrownBy(() -> service.updateAudiobookCoverFromFile(1L, file))
+                    .isInstanceOf(APIException.class);
+        }
+    }
+
+    @Nested
+    class UpdateAudiobookCoverFromUrl {
+
+        @Test
+        void successfullyUpdatesCoverFromUrl() {
+            BookEntity book = buildBookWithAudiobookLock(1L, false);
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+            when(bookRepository.findCoverUpdateInfoByIds(any())).thenReturn(List.of());
+
+            service.updateAudiobookCoverFromUrl(1L, "https://example.com/audiobook-cover.jpg");
+
+            verify(fileService).createAudiobookThumbnailFromUrl(1L, "https://example.com/audiobook-cover.jpg");
+            verify(bookRepository).save(book);
+            assertThat(book.getMetadata().getAudiobookCoverUpdatedOn()).isNotNull();
+            assertThat(book.getAudiobookCoverHash()).isNotNull();
+        }
+
+        @Test
+        void throwsWhenBookNotFound() {
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.updateAudiobookCoverFromUrl(1L, "https://example.com"))
+                    .isInstanceOf(APIException.class);
+        }
+    }
+
+    @Nested
+    class RegenerateAudiobookCoverSuccess {
+
+        @Test
+        void successfullyRegeneratesAudiobookCover() {
+            BookEntity book = buildBookWithAudiobookLock(1L, false);
+            BookFileEntity audiobookFile = BookFileEntity.builder()
+                    .bookType(BookFileType.AUDIOBOOK)
+                    .build();
+            book.setBookFiles(Set.of(audiobookFile));
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+
+            BookFileProcessor processor = mock(BookFileProcessor.class);
+            when(processorRegistry.getProcessorOrThrow(BookFileType.AUDIOBOOK)).thenReturn(processor);
+            when(processor.generateAudiobookCover(book)).thenReturn(true);
+            when(bookRepository.findCoverUpdateInfoByIds(any())).thenReturn(List.of());
+
+            service.regenerateAudiobookCover(1L);
+
+            assertThat(book.getMetadata().getAudiobookCoverUpdatedOn()).isNotNull();
+            assertThat(book.getAudiobookCoverHash()).isNotNull();
+            verify(bookRepository).save(book);
+        }
+    }
+
+    @Nested
+    class GenerateCustomAudiobookCover {
+
+        @Test
+        void successfullyGeneratesCustomAudiobookCover() {
+            BookEntity book = buildBookWithAudiobookLock(1L, false);
+            AuthorEntity author = AuthorEntity.builder().name("Author Name").build();
+            book.getMetadata().setAuthors(List.of(author));
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+            when(coverImageGenerator.generateSquareCover("Test Audiobook", "Author Name")).thenReturn(new byte[]{1, 2});
+            when(bookRepository.findCoverUpdateInfoByIds(any())).thenReturn(List.of());
+
+            service.generateCustomAudiobookCover(1L);
+
+            verify(coverImageGenerator).generateSquareCover("Test Audiobook", "Author Name");
+            verify(fileService).createAudiobookThumbnailFromBytes(eq(1L), any());
+            verify(bookRepository).save(book);
+            assertThat(book.getMetadata().getAudiobookCoverUpdatedOn()).isNotNull();
+        }
+
+        @Test
+        void throwsWhenBookNotFound() {
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.generateCustomAudiobookCover(1L))
+                    .isInstanceOf(APIException.class);
+        }
+
+        @Test
+        void throwsWhenAudiobookCoverLocked() {
+            BookEntity book = buildBookWithAudiobookLock(1L, true);
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+
+            assertThatThrownBy(() -> service.generateCustomAudiobookCover(1L))
+                    .isInstanceOf(APIException.class);
+        }
+
+        @Test
+        void handlesNullAuthors() {
+            BookEntity book = buildBookWithAudiobookLock(1L, false);
+            book.getMetadata().setAuthors(null);
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+            when(coverImageGenerator.generateSquareCover("Test Audiobook", null)).thenReturn(new byte[]{1});
+            when(bookRepository.findCoverUpdateInfoByIds(any())).thenReturn(List.of());
+
+            service.generateCustomAudiobookCover(1L);
+
+            verify(coverImageGenerator).generateSquareCover("Test Audiobook", null);
+        }
+    }
+
+    @Nested
+    class BulkRegenerateCoversForBooks {
+
+        @Test
+        void delegatesToAsyncExecutorWithUnlockedBooks() {
+            BookEntity unlocked = buildBook(1L, false);
+            unlocked.setBookFiles(Set.of(BookFileEntity.builder().bookType(BookFileType.EPUB).isBookFormat(true).build()));
+            unlocked.setLibrary(LibraryEntity.builder().build());
+            BookEntity locked = buildBook(2L, true);
+
+            when(bookQueryService.findAllWithMetadataByIds(Set.of(1L, 2L)))
+                    .thenReturn(List.of(unlocked, locked));
+
+            doAnswer(inv -> {
+                inv.<Runnable>getArgument(0).run();
+                return null;
+            }).when(taskExecutor).execute(any(Runnable.class));
+
+            service.regenerateCoversForBooks(Set.of(1L, 2L));
+
+            verify(taskExecutor).execute(any(Runnable.class));
+        }
+    }
+
+    @Nested
+    class BulkGenerateCustomCoversForBooks {
+
+        @Test
+        void delegatesToAsyncExecutorWithUnlockedBooks() {
+            BookEntity unlocked = buildBook(1L, false);
+            BookEntity locked = buildBook(2L, true);
+
+            when(bookQueryService.findAllWithMetadataByIds(Set.of(1L, 2L)))
+                    .thenReturn(List.of(unlocked, locked));
+
+            doAnswer(inv -> {
+                inv.<Runnable>getArgument(0).run();
+                return null;
+            }).when(taskExecutor).execute(any(Runnable.class));
+
+            service.generateCustomCoversForBooks(Set.of(1L, 2L));
+
+            verify(taskExecutor).execute(any(Runnable.class));
+        }
+    }
+
+    @Nested
+    class BulkUpdateCoverFromFileForBooks {
+
+        @Test
+        void processesOnlyUnlockedBooks() throws Exception {
+            when(appSettingService.getAppSettings()).thenReturn(appSettings);
+            when(appSettings.getMaxFileUploadSizeInMb()).thenReturn(5);
+
+            BookEntity unlocked = buildBook(1L, false);
+            BookEntity locked = buildBook(2L, true);
+
+            when(bookQueryService.findAllWithMetadataByIds(Set.of(1L, 2L)))
+                    .thenReturn(List.of(unlocked, locked));
+
+            MultipartFile file = mock(MultipartFile.class);
+            when(file.isEmpty()).thenReturn(false);
+            when(file.getSize()).thenReturn(1024L);
+            when(file.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}));
+            when(file.getBytes()).thenReturn(new byte[]{1, 2, 3});
+
+            doAnswer(inv -> {
+                inv.<Runnable>getArgument(0).run();
+                return null;
+            }).when(taskExecutor).execute(any(Runnable.class));
+
+            service.updateCoverFromFileForBooks(Set.of(1L, 2L), file);
+
+            verify(taskExecutor).execute(any(Runnable.class));
+        }
+    }
+
+    @Nested
+    class RegenerateCoversAll {
+
+        @Test
+        void regeneratesCoversForAllUnlockedBooks() {
+            BookEntity book = buildBook(1L, false);
+            BookFileEntity ebookFile = BookFileEntity.builder()
+                    .bookType(BookFileType.EPUB).isBookFormat(true).build();
+            book.setBookFiles(Set.of(ebookFile));
+            book.setLibrary(LibraryEntity.builder().build());
+
+            when(bookQueryService.getAllFullBookEntitiesWithFiles()).thenReturn(List.of(book));
+
+            BookFileProcessor processor = mock(BookFileProcessor.class);
+            when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+                var callback = inv.getArgument(0, TransactionCallback.class);
+                return callback.doInTransaction(null);
+            });
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+            when(processorRegistry.getProcessorOrThrow(BookFileType.EPUB)).thenReturn(processor);
+            when(processor.generateCover(book)).thenReturn(true);
+            when(bookRepository.findCoverUpdateInfoByIds(any())).thenReturn(List.of());
+
+            doAnswer(inv -> {
+                inv.<Runnable>getArgument(0).run();
+                return null;
+            }).when(taskExecutor).execute(any(Runnable.class));
+
+            service.regenerateCovers(false);
+
+            verify(bookRepository).save(book);
+            assertThat(book.getMetadata().getCoverUpdatedOn()).isNotNull();
+        }
+
+        @Test
+        void skipsLockedBooks() {
+            BookEntity locked = buildBook(1L, true);
+            BookFileEntity ebookFile = BookFileEntity.builder()
+                    .bookType(BookFileType.EPUB).isBookFormat(true).build();
+            locked.setBookFiles(Set.of(ebookFile));
+            locked.setLibrary(LibraryEntity.builder().build());
+
+            when(bookQueryService.getAllFullBookEntitiesWithFiles()).thenReturn(List.of(locked));
+
+            doAnswer(inv -> {
+                inv.<Runnable>getArgument(0).run();
+                return null;
+            }).when(taskExecutor).execute(any(Runnable.class));
+
+            service.regenerateCovers(false);
+
+            verify(bookRepository, never()).save(any());
+        }
+
+        @Test
+        void missingOnlySkipsBooksWithExistingCover() {
+            BookEntity withCover = buildBook(1L, false);
+            withCover.setBookCoverHash("existingHash");
+            BookFileEntity ebookFile1 = BookFileEntity.builder()
+                    .bookType(BookFileType.EPUB).isBookFormat(true).build();
+            withCover.setBookFiles(Set.of(ebookFile1));
+            withCover.setLibrary(LibraryEntity.builder().build());
+
+            BookEntity withoutCover = buildBook(2L, false);
+            withoutCover.setBookCoverHash(null);
+            BookFileEntity ebookFile2 = BookFileEntity.builder()
+                    .bookType(BookFileType.EPUB).isBookFormat(true).build();
+            withoutCover.setBookFiles(Set.of(ebookFile2));
+            withoutCover.setLibrary(LibraryEntity.builder().build());
+
+            when(bookQueryService.getAllFullBookEntitiesWithFiles()).thenReturn(List.of(withCover, withoutCover));
+
+            BookFileProcessor processor = mock(BookFileProcessor.class);
+            when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+                var callback = inv.getArgument(0, TransactionCallback.class);
+                return callback.doInTransaction(null);
+            });
+            when(bookRepository.findByIdWithBookFiles(2L)).thenReturn(Optional.of(withoutCover));
+            when(processorRegistry.getProcessorOrThrow(BookFileType.EPUB)).thenReturn(processor);
+            when(processor.generateCover(withoutCover)).thenReturn(true);
+            when(bookRepository.findCoverUpdateInfoByIds(any())).thenReturn(List.of());
+
+            doAnswer(inv -> {
+                inv.<Runnable>getArgument(0).run();
+                return null;
+            }).when(taskExecutor).execute(any(Runnable.class));
+
+            service.regenerateCovers(true);
+
+            // Now it is 1 call because the initial query is moved to bookQueryService (which is mocked)
+            verify(transactionTemplate, times(1)).execute(any());
+            verify(bookRepository).save(withoutCover);
+            verify(bookRepository, never()).findById(1L);
+        }
+
+        @Test
+        void skipsBooksWithNoPrimaryFile() {
+            BookEntity book = buildBook(1L, false);
+            book.setBookFiles(new HashSet<>());
+
+            when(bookQueryService.getAllFullBookEntitiesWithFiles()).thenReturn(List.of(book));
+
+            doAnswer(inv -> {
+                inv.<Runnable>getArgument(0).run();
+                return null;
+            }).when(taskExecutor).execute(any(Runnable.class));
+
+            service.regenerateCovers(false);
+
+            // Fetching list is moved to bookQueryService
+            verify(transactionTemplate, never()).execute(any());
+            verify(bookRepository, never()).save(any());
+        }
+
+        @Test
+        void skipsBooksWithNoMetadata() {
+            BookEntity book = BookEntity.builder()
+                    .id(1L)
+                    .metadata(null)
+                    .bookFiles(new HashSet<>())
+                    .build();
+
+            when(bookQueryService.getAllFullBookEntitiesWithFiles()).thenReturn(List.of(book));
+
+            doAnswer(inv -> {
+                inv.<Runnable>getArgument(0).run();
+                return null;
+            }).when(taskExecutor).execute(any(Runnable.class));
+
+            service.regenerateCovers(false);
+
+            verify(transactionTemplate, never()).execute(any());
+            verify(bookRepository, never()).save(any());
+        }
+    }
+
+    @Nested
+    class LockStatusEdgeCases {
+        @Test
+        void unlockedMethodsHandleNullMetadata() throws Exception {
+            BookEntity book = BookEntity.builder().id(1L).metadata(null).build();
+            when(bookQueryService.findAllWithMetadataByIds(any())).thenReturn(List.of(book));
+
+            // Test getUnlockedBookCoverInfos via updateCoverFromFileForBooks (async)
+            doAnswer(inv -> {
+                inv.<Runnable>getArgument(0).run();
+                return null;
+            }).when(taskExecutor).execute(any(Runnable.class));
+            
+            MultipartFile file = mock(MultipartFile.class);
+            when(file.isEmpty()).thenReturn(false);
+            when(file.getSize()).thenReturn(1024L);
+            when(file.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF}));
+            when(appSettingService.getAppSettings()).thenReturn(appSettings);
+            when(appSettings.getMaxFileUploadSizeInMb()).thenReturn(10);
+            
+            service.updateCoverFromFileForBooks(Set.of(1L), file);
+            
+            verify(bookQueryService).findAllWithMetadataByIds(any());
+            // Should not proceed to transaction if filtered out
+            verify(transactionTemplate, never()).execute(any());
+        }
+    }
+
+    @Nested
+    class FindEbookFileEdgeCases {
+
+        @Test
+        void returnsNullWhenBookFilesIsNull() {
+            BookEntity book = buildBook(1L, false);
+            book.setBookFiles(null);
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+
+            assertThatThrownBy(() -> service.regenerateCover(1L))
+                    .isInstanceOf(APIException.class)
+                    .hasMessageContaining("no ebook file found");
+        }
+
+        @Test
+        void returnsNullWhenBookFilesIsEmpty() {
+            BookEntity book = buildBook(1L, false);
+            book.setBookFiles(new HashSet<>());
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+
+            assertThatThrownBy(() -> service.regenerateCover(1L))
+                    .isInstanceOf(APIException.class)
+                    .hasMessageContaining("no ebook file found");
+        }
+
+        @Test
+        void returnsNullWhenOnlyAudiobookFiles() {
+            BookEntity book = buildBook(1L, false);
+            BookFileEntity audiobookFile = BookFileEntity.builder()
+                    .bookType(BookFileType.AUDIOBOOK).isBookFormat(false).build();
+            book.setBookFiles(Set.of(audiobookFile));
+            book.setLibrary(LibraryEntity.builder().formatPriority(null).build());
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+
+            assertThatThrownBy(() -> service.regenerateCover(1L))
+                    .isInstanceOf(APIException.class)
+                    .hasMessageContaining("no ebook file found");
+        }
+
+        @Test
+        void selectsFirstMatchingFormatFromPriority() {
+            BookEntity book = buildBook(1L, false);
+            BookFileEntity pdfFile = BookFileEntity.builder()
+                    .bookType(BookFileType.PDF).isBookFormat(true).build();
+            BookFileEntity epubFile = BookFileEntity.builder()
+                    .bookType(BookFileType.EPUB).isBookFormat(true).build();
+            book.setBookFiles(Set.of(pdfFile, epubFile));
+            book.setLibrary(LibraryEntity.builder()
+                    .formatPriority(List.of(BookFileType.EPUB, BookFileType.PDF)).build());
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+
+            BookFileProcessor processor = mock(BookFileProcessor.class);
+            when(processorRegistry.getProcessorOrThrow(BookFileType.EPUB)).thenReturn(processor);
+            when(processor.generateCover(eq(book), eq(epubFile))).thenReturn(true);
+
+            service.regenerateCover(1L);
+
+            verify(processorRegistry).getProcessorOrThrow(BookFileType.EPUB);
+        }
+
+        @Test
+        void fallsBackWhenPriorityFormatNotAvailable() {
+            BookEntity book = buildBook(1L, false);
+            BookFileEntity pdfFile = BookFileEntity.builder()
+                    .bookType(BookFileType.PDF).isBookFormat(true).build();
+            book.setBookFiles(Set.of(pdfFile));
+            book.setLibrary(LibraryEntity.builder()
+                    .formatPriority(List.of(BookFileType.EPUB)).build());
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+
+            BookFileProcessor processor = mock(BookFileProcessor.class);
+            when(processorRegistry.getProcessorOrThrow(BookFileType.PDF)).thenReturn(processor);
+            when(processor.generateCover(eq(book), eq(pdfFile))).thenReturn(true);
+
+            service.regenerateCover(1L);
+
+            verify(processorRegistry).getProcessorOrThrow(BookFileType.PDF);
+        }
+
+        @Test
+        void handlesEmptyFormatPriorityList() {
+            BookEntity book = buildBook(1L, false);
+            BookFileEntity epubFile = BookFileEntity.builder()
+                    .bookType(BookFileType.EPUB).isBookFormat(true).build();
+            book.setBookFiles(Set.of(epubFile));
+            book.setLibrary(LibraryEntity.builder().formatPriority(List.of()).build());
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+
+            BookFileProcessor processor = mock(BookFileProcessor.class);
+            when(processorRegistry.getProcessorOrThrow(BookFileType.EPUB)).thenReturn(processor);
+            when(processor.generateCover(eq(book), eq(epubFile))).thenReturn(true);
+
+            service.regenerateCover(1L);
+
+            verify(processorRegistry).getProcessorOrThrow(BookFileType.EPUB);
+        }
+    }
+
+    @Nested
+    class WriteCoverToBookFile {
+
+        @Test
+        void writesAndUpdatesHashWhenWriterExists() {
+            BookEntity book = buildBook(1L, false);
+            BookFileEntity primaryFile = BookFileEntity.builder()
+                    .bookType(BookFileType.EPUB).isBookFormat(true)
+                    .fileName("test.epub").fileSubPath("sub")
+                    .build();
+            book.setBookFiles(Set.of(primaryFile));
+            book.setLibrary(LibraryEntity.builder().build());
+            book.setLibraryPath(LibraryPathEntity.builder().path("/lib").build());
+
+            MetadataPersistenceSettings persistSettings = mock(MetadataPersistenceSettings.class);
+            when(appSettingService.getAppSettings()).thenReturn(appSettings);
+            when(appSettings.getMetadataPersistenceSettings()).thenReturn(persistSettings);
+            when(persistSettings.isConvertCbrCb7ToCbz()).thenReturn(false);
+
+            MetadataWriter writer = mock(MetadataWriter.class);
+            when(metadataWriterFactory.getWriter(BookFileType.EPUB)).thenReturn(Optional.of(writer));
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+            when(bookRepository.findCoverUpdateInfoByIds(any())).thenReturn(List.of());
+
+            try (MockedStatic<FileFingerprint> fpMock = mockStatic(FileFingerprint.class)) {
+                fpMock.when(() -> FileFingerprint.generateHash(any())).thenReturn("abc123");
+
+                service.updateCoverFromUrl(1L, "https://example.com/cover.jpg");
+
+                verify(metadataWriterFactory).getWriter(BookFileType.EPUB);
+                assertThat(primaryFile.getCurrentHash()).isEqualTo("abc123");
+            }
+        }
+
+        @Test
+        void skipsWriteWhenNoPrimaryFile() {
+            BookEntity book = buildBook(1L, false);
+            book.setBookFiles(new HashSet<>());
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+            when(bookRepository.findCoverUpdateInfoByIds(any())).thenReturn(List.of());
+
+            service.updateCoverFromUrl(1L, "https://example.com/cover.jpg");
+
+            verify(metadataWriterFactory, never()).getWriter(any());
+        }
+    }
+
+    @Nested
+    class NotifyBookCoverUpdate {
+
+        @Test
+        void sendsNotificationWhenUpdatesExist() {
+            BookEntity book = buildBook(1L, false);
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+
+            BookCoverUpdateProjection projection = mock(BookCoverUpdateProjection.class);
+            when(bookRepository.findCoverUpdateInfoByIds(List.of(1L))).thenReturn(List.of(projection));
+
+            service.updateCoverFromUrl(1L, "https://example.com/cover.jpg");
+
+            verify(notificationService).sendMessage(any(), eq(List.of(projection)));
+        }
+
+        @Test
+        void doesNotSendNotificationWhenNoUpdates() {
+            BookEntity book = buildBook(1L, false);
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+            when(bookRepository.findCoverUpdateInfoByIds(any())).thenReturn(List.of());
+
+            service.updateCoverFromUrl(1L, "https://example.com/cover.jpg");
+
+            verify(notificationService, never()).sendMessage(any(), anyList());
+        }
+    }
+
+    @Nested
+    class GetAuthorNames {
+
+        @Test
+        void returnsNullForEmptyAuthors() {
+            BookEntity book = buildBook(1L, false);
+            book.getMetadata().setAuthors(new ArrayList<>());
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+            when(coverImageGenerator.generateCover("Test Book", null)).thenReturn(new byte[]{1});
+            when(bookRepository.findCoverUpdateInfoByIds(any())).thenReturn(List.of());
+
+            service.generateCustomCover(1L);
+
+            verify(coverImageGenerator).generateCover("Test Book", null);
+        }
+
+        @Test
+        void joinsMultipleAuthorNames() {
+            BookEntity book = buildBook(1L, false);
+            List<AuthorEntity> authors = new ArrayList<>();
+            authors.add(AuthorEntity.builder().name("Alice").build());
+            authors.add(AuthorEntity.builder().name("Bob").build());
+            book.getMetadata().setAuthors(authors);
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+            when(coverImageGenerator.generateCover(eq("Test Book"), argThat(s -> s.contains("Alice") && s.contains("Bob"))))
+                    .thenReturn(new byte[]{1});
+            when(bookRepository.findCoverUpdateInfoByIds(any())).thenReturn(List.of());
+
+            service.generateCustomCover(1L);
+
+            verify(coverImageGenerator).generateCover(eq("Test Book"), argThat(s -> s.contains("Alice") && s.contains("Bob")));
+        }
+    }
+
+    @Nested
+    class NetworkStorageGating {
+
+        @Test
+        void writeCoverToBookFile_networkStorage_skipsFileWrite() {
+            when(appProperties.isLocalStorage()).thenReturn(false);
+
+            BookEntity book = buildBook(1L, false);
+            BookFileEntity bookFile = BookFileEntity.builder()
+                    .bookType(BookFileType.EPUB)
+                    .isBookFormat(true)
+                    .build();
+            book.setBookFiles(Set.of(bookFile));
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+            when(bookRepository.findCoverUpdateInfoByIds(any())).thenReturn(List.of());
+
+            service.updateCoverFromUrl(1L, "https://example.com/cover.jpg");
+
+            verify(metadataWriterFactory, never()).getWriter(any());
+            verify(bookRepository).save(book);
+        }
+
+        @Test
+        void writeAudiobookCoverToFile_networkStorage_skipsFileWrite() {
+            when(appProperties.isLocalStorage()).thenReturn(false);
+
+            BookEntity book = buildBookWithAudiobookLock(1L, false);
+            BookFileEntity audiobookFile = BookFileEntity.builder()
+                    .bookType(BookFileType.AUDIOBOOK)
+                    .build();
+            book.setBookFiles(Set.of(audiobookFile));
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+            when(bookRepository.findCoverUpdateInfoByIds(any())).thenReturn(List.of());
+
+            service.updateAudiobookCoverFromUrl(1L, "https://example.com/audiobook-cover.jpg");
+
+            verify(metadataWriterFactory, never()).getWriter(any());
+            verify(bookRepository).save(book);
+        }
+    }
+
+    @Nested
+    class SidecarWriteOnCoverUpdate {
+
+        @Test
+        void writesSidecarWhenWriteOnUpdateEnabled() {
+            BookEntity book = buildBook(1L, false);
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+            when(bookRepository.findCoverUpdateInfoByIds(any())).thenReturn(List.of());
+            when(sidecarMetadataWriter.isWriteOnUpdateEnabled()).thenReturn(true);
+
+            service.updateCoverFromUrl(1L, "https://example.com/cover.jpg");
+
+            verify(sidecarMetadataWriter).writeSidecarMetadata(book);
+        }
+
+        @Test
+        void writesSidecarForAudiobookCoverWhenWriteOnUpdateEnabled() {
+            BookEntity book = buildBookWithAudiobookLock(1L, false);
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+            when(bookRepository.findCoverUpdateInfoByIds(any())).thenReturn(List.of());
+            when(sidecarMetadataWriter.isWriteOnUpdateEnabled()).thenReturn(true);
+
+            service.updateAudiobookCoverFromUrl(1L, "https://example.com/audiobook-cover.jpg");
+
+            verify(sidecarMetadataWriter).writeSidecarMetadata(book);
+        }
+
+        @Test
+        void skipsSidecarWhenWriteOnUpdateDisabled() {
+            BookEntity book = buildBook(1L, false);
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+            when(bookRepository.findCoverUpdateInfoByIds(any())).thenReturn(List.of());
+            when(sidecarMetadataWriter.isWriteOnUpdateEnabled()).thenReturn(false);
+
+            service.updateCoverFromUrl(1L, "https://example.com/cover.jpg");
+
+            verify(sidecarMetadataWriter, never()).writeSidecarMetadata(any());
+        }
+
+        @Test
+        void coverUpdateSucceedsWhenSidecarWriteFails() {
+            BookEntity book = buildBook(1L, false);
+            when(bookRepository.findByIdWithBookFiles(1L)).thenReturn(Optional.of(book));
+            when(bookRepository.findCoverUpdateInfoByIds(any())).thenReturn(List.of());
+            when(sidecarMetadataWriter.isWriteOnUpdateEnabled()).thenReturn(true);
+            doThrow(new RuntimeException("sidecar unavailable")).when(sidecarMetadataWriter).writeSidecarMetadata(book);
+
+            service.updateCoverFromUrl(1L, "https://example.com/cover.jpg");
+
+            verify(bookRepository).save(book);
+            assertThat(book.getMetadata().getCoverUpdatedOn()).isNotNull();
+        }
+    }
+}
