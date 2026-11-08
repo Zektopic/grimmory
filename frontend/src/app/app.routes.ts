@@ -8,15 +8,24 @@ import {SetupGuard} from './shared/components/setup/setup.guard';
 import {SetupRedirectGuard} from './shared/components/setup/setup-redirect.guard';
 import {EmptyComponent} from './shared/components/empty/empty.component';
 import {OidcCallbackComponent} from './core/security/oidc-callback/oidc-callback.component';
-import {MainDashboardComponent} from './features/dashboard/components/main-dashboard/main-dashboard.component';
+import {DashboardPageComponent} from './features/dashboard/components/dashboard-page/dashboard-page.component';
 import {LoginGuard} from './shared/components/setup/login.guard';
 import {BookdropGuard} from './core/security/guards/bookdrop.guard';
 import {LibraryStatsGuard} from './core/security/guards/library-stats.guard';
 import {UserStatsGuard} from './core/security/guards/user-stats.guard';
 import {EditMetadataGuard} from './core/security/guards/edit-metdata.guard';
+import {UNSHELVED_BROWSE_SCOPE, validBookBrowseScope} from './features/book/browse/book-browse-scope';
+import {dashboardRowScopeResolver} from './features/dashboard/dashboard-rows';
 
-const loadBookBrowserComponent = () =>
-  import('./features/book/components/book-browser/book-browser.component').then(m => m.BookBrowserComponent);
+const loadBookBrowsePage = () =>
+  import('./features/book/browse/book-browse-page.component').then(m => m.BookBrowsePageComponent);
+const loadBookBrowseFilterPage = () =>
+  import('./features/book/browse/book-browse-filter-page.component').then(m => m.BookBrowseFilterPageComponent);
+
+const bookBrowseRoutes = () => [
+  {path: '', loadComponent: loadBookBrowsePage},
+  {path: 'filter', loadComponent: loadBookBrowseFilterPage},
+];
 
 export const routes: Routes = [
   {
@@ -36,17 +45,18 @@ export const routes: Routes = [
     component: AppLayoutComponent,
     canActivateChild: [AuthChildGuard],
     children: [
-      {path: 'dashboard', component: MainDashboardComponent},
-      {path: 'all-books', loadComponent: loadBookBrowserComponent},
+      {path: 'dashboard', component: DashboardPageComponent},
+      {path: 'dashboard/:rowId/books', resolve: {browseScope: dashboardRowScopeResolver}, children: bookBrowseRoutes()},
+      {path: 'all-books', children: bookBrowseRoutes()},
       {path: 'settings', loadComponent: () => import('./features/settings/settings.component').then(m => m.SettingsComponent)},
-      {path: 'library/:libraryId/books', loadComponent: loadBookBrowserComponent},
-      {path: 'shelf/:shelfId/books', loadComponent: loadBookBrowserComponent},
-      {path: 'unshelved-books', loadComponent: loadBookBrowserComponent},
+      {path: 'library/:libraryId/books', canActivateChild: [validBookBrowseScope], children: bookBrowseRoutes()},
+      {path: 'shelf/:shelfId/books', canActivateChild: [validBookBrowseScope], children: bookBrowseRoutes()},
+      {path: 'unshelved-books', data: {browseScope: UNSHELVED_BROWSE_SCOPE}, children: bookBrowseRoutes()},
       {path: 'series', loadComponent: () => import('./features/series-browser/components/series-browser/series-browser.component').then(m => m.SeriesBrowserComponent)},
       {path: 'series/:seriesName', loadComponent: () => import('./features/book/components/series-page/series-page.component').then(m => m.SeriesPageComponent)},
       {path: 'authors', loadComponent: () => import('./features/author-browser/components/author-browser/author-browser.component').then(m => m.AuthorBrowserComponent)},
       {path: 'author/:authorId', loadComponent: () => import('./features/author-browser/components/author-detail/author-detail.component').then(m => m.AuthorDetailComponent)},
-      {path: 'magic-shelf/:magicShelfId/books', loadComponent: loadBookBrowserComponent},
+      {path: 'magic-shelf/:magicShelfId/books', canActivateChild: [validBookBrowseScope], children: bookBrowseRoutes()},
       {path: 'book/:bookId', loadComponent: () => import('./features/metadata/component/book-metadata-center/book-metadata-center.component').then(m => m.BookMetadataCenterComponent)},
       {path: 'bookdrop', loadComponent: () => import('./features/bookdrop/component/bookdrop-file-review/bookdrop-file-review.component').then(m => m.BookdropFileReviewComponent), canActivate: [BookdropGuard]},
       {path: 'metadata-manager', loadComponent: () => import('./features/metadata/component/metadata-manager/metadata-manager.component').then(m => m.MetadataManagerComponent), canActivate: [EditMetadataGuard]},
