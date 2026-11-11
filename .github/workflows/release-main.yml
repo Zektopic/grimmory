@@ -56,7 +56,7 @@ jobs:
           set -eu
 
           git fetch origin main --tags --force
-          from_ref="$(git describe --tags --abbrev=0 --match 'v*' origin/main)"
+          from_ref="$(git describe --tags --abbrev=0 --match 'v*' origin/main 2>/dev/null || echo "")"
 
           echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "from_ref=${from_ref}" >> "$GITHUB_OUTPUT"

@@ -71,11 +71,17 @@ jobs:
         run: |
           set -eu
   
+          if [ -n "${FROM_REF}" ]; then
+            RANGE="${FROM_REF}..${TO_REF}"
+          else
+            RANGE="${TO_REF}"
+          fi
+
           git-cliff \
             --config ${GIT_CLIFF_CONFIG} \
             --context \
             --output range-context.json \
-            "${FROM_REF}..${TO_REF}"
+            "${RANGE}"
   
           if [ "$IS_BUMP" = "true" ]; then
             BUMP_ARG="--bump"
@@ -88,7 +94,7 @@ jobs:
             --from-context range-context.json \
             ${BUMP_ARG} \
             --output range-notes.md \
-            "${FROM_REF}..${TO_REF}"
+            "${RANGE}"
   
           RELEASE_NOTES_DELIM="EOF_$(openssl rand -hex 16)"
   
@@ -104,7 +110,7 @@ jobs:
               --config ${GIT_CLIFF_CONFIG} \
               --from-context range-context.json \
               --bumped-version \
-              "${FROM_REF}..${TO_REF}"
+              "${RANGE}"
           )
           
           echo "version=${PREDICTED_VERSION}" >> "$GITHUB_OUTPUT"
@@ -118,7 +124,7 @@ jobs:
           PREDICTED_VERSION: ${{ steps.git-cliff.outputs.version }}
           RELEASE_NOTES: ${{ steps.git-cliff.outputs.release-notes }}
           DETAILS_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
-          COMPARE_URL: ${{ format('{0}/{1}/compare/{2}...{3}', github.server_url, github.repository, inputs.from-ref, inputs.to-ref) }}
+          COMPARE_URL: ${{ inputs.from-ref != '' && format('{0}/{1}/compare/{2}...{3}', github.server_url, github.repository, inputs.from-ref, inputs.to-ref) || '' }}
         run: |
           set -eu
   

@@ -48,7 +48,7 @@ jobs:
           fi
 
           candidate_sha="$(git rev-parse HEAD)"
-          base_tag="$(git describe --tags --abbrev=0 --match 'v*' origin/main)"
+          base_tag="$(git describe --tags --abbrev=0 --match 'v*' origin/main 2>/dev/null || echo "")"
           latest_nightly_json="$(
             gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/publish-nightly.yml/runs?branch=develop&status=success&per_page=1"
           )"

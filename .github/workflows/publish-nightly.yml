@@ -41,7 +41,7 @@ jobs:
           short_sha="$(git rev-parse --short HEAD)"
           build_date="$(date -u +%Y%m%d)"
           nightly_tag="nightly-${build_date}-${short_sha}"
-          from_ref="$(git describe --tags --abbrev=0 --match 'v*' origin/main)"
+          from_ref="$(git describe --tags --abbrev=0 --match 'v*' origin/main 2>/dev/null || echo "")"
 
           echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "from_ref=${from_ref}" >> "$GITHUB_OUTPUT"
