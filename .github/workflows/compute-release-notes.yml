@@ -122,7 +122,6 @@ jobs:
           FROM_REF: ${{ inputs.from-ref }}
           TO_REF: ${{ inputs.to-ref }}
           PREDICTED_VERSION: ${{ steps.git-cliff.outputs.version }}
-          RELEASE_NOTES: ${{ steps.git-cliff.outputs.release-notes }}
           DETAILS_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
           COMPARE_URL: ${{ inputs.from-ref != '' && format('{0}/{1}/compare/{2}...{3}', github.server_url, github.repository, inputs.from-ref, inputs.to-ref) || '' }}
         run: |
@@ -142,7 +141,7 @@ jobs:
               echo "- Compare: ${COMPARE_URL}"
             fi
             echo
-            echo "$RELEASE_NOTES"
+            cat range-notes.md
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Range Notes Artifact

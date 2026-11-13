@@ -215,6 +215,11 @@ jobs:
           name: openapi
           path: artifacts/
 
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: range-release-notes
+          path: release-notes/
+
       - name: Create assets directory
         run: |
           mkdir -p release-assets/
@@ -228,7 +233,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN != '' && secrets.RELEASE_BOT_TOKEN || github.token }}
           GITHUB_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN != '' && secrets.RELEASE_BOT_TOKEN || github.token }}
-          RELEASE_NOTES: ${{ needs.semantic-version.outputs.release-notes }}
           RELEASE_VERSION: ${{ needs.semantic-version.outputs.version }}
           TARGET_REF: ${{ github.sha }}
         run: |
@@ -238,5 +242,5 @@ jobs:
             --draft \
             --latest \
             --target "${TARGET_REF}" \
-            --notes "${RELEASE_NOTES}" \
+            --notes-file release-notes/range-notes.md \
             release-assets/*
