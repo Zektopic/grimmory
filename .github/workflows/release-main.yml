@@ -236,6 +236,16 @@ jobs:
           RELEASE_VERSION: ${{ needs.semantic-version.outputs.version }}
           TARGET_REF: ${{ github.sha }}
         run: |
+          python3 -c '
+          from pathlib import Path
+          p = Path("release-notes/range-notes.md")
+          text = p.read_text(encoding="utf-8")
+          limit = 120000
+          if len(text) > limit:
+              notice = "\n\n... *(truncated to fit GitHub Release 125,000-character limit; see full changelog in workflow summary)*\n"
+              cut = text[: limit - len(notice)].rsplit("\n", 1)[0]
+              p.write_text(cut + notice, encoding="utf-8")
+          '
           gh release create \
             "${RELEASE_VERSION}" \
             --title "Release ${RELEASE_VERSION}" \
