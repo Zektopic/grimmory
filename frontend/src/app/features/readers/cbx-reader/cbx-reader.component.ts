@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, ElementRef, HostListener, inject, OnDestroy, OnInit, signal, untracked, viewChild } from '@angular/core';
+import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, effect, ElementRef, HostListener, inject, Injector, OnDestroy, OnInit, signal, untracked, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { QueryClient } from '@tanstack/angular-query-experimental';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
@@ -94,6 +94,7 @@ export class CbxReaderComponent implements OnInit, OnDestroy {
   private static readonly TOUCH_MOUSE_EMULATION_MS = 800;
 
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
   private readonly hostRef = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -225,6 +226,9 @@ export class CbxReaderComponent implements OnInit, OnDestroy {
   private readonly readerLayoutGraceUntilMs = signal(0);
   /** Invalidates delayed scroll/layout work after book or scroll-mode changes. */
   private readonly readerLayoutGeneration = signal(0);
+  /** Invalidates a pending loadMorePages() append whenever infiniteScrollPages is wholesale replaced
+   *  (ensurePageLoaded, scroll-mode teardown/init) rather than appended-to in place. */
+  private infiniteScrollWindowVersion = 0;
   /** Avoid continuation hint flicker when scroll height changes (hysteresis). */
   private readonly continuationHintLatched = signal(false);
 
@@ -1144,6 +1148,7 @@ export class CbxReaderComponent implements OnInit, OnDestroy {
         clearTimeout(this.infiniteScrollPageDebounceTimer);
         this.infiniteScrollPageDebounceTimer = null;
       }
+      this.infiniteScrollWindowVersion++;
       this.infiniteScrollPages.set([]);
       this.isLoadingMore.set(false);
     }
@@ -1192,7 +1197,9 @@ export class CbxReaderComponent implements OnInit, OnDestroy {
     for (let i = startIndex; i < endIndex; i++) {
       pages.push(i);
     }
+    this.infiniteScrollWindowVersion++;
     this.infiniteScrollPages.set(pages);
+    this.isLoadingMore.set(false);
   }
 
   onScroll(event: Event): void {
@@ -1235,16 +1242,97 @@ export class CbxReaderComponent implements OnInit, OnDestroy {
 
     this.isLoadingMore.set(true);
     const endIndex = Math.min(lastLoadedIndex + this.preloadCount + 1, this.pages().length);
+    const layoutGen = this.readerLayoutGeneration();
+    const scrollModeAtStart = this.scrollMode();
+    const windowVersion = this.infiniteScrollWindowVersion;
 
     requestAnimationFrame(() => {
+      if (windowVersion !== this.infiniteScrollWindowVersion) {
+        // infiniteScrollPages was wholesale replaced (e.g. goToPage) while this frame was
+        // pending — that reset already owns isLoadingMore, don't touch it here.
+        return;
+      }
+      if (layoutGen !== this.readerLayoutGeneration() || this.scrollMode() !== scrollModeAtStart) {
+        this.isLoadingMore.set(false);
+        return;
+      }
+
       const added: number[] = [];
       for (let i = lastLoadedIndex + 1; i < endIndex; i++) {
         added.push(i);
       }
-      this.infiniteScrollPages.update(p => [...p, ...added]);
+      const nextPages = [...this.infiniteScrollPages(), ...added];
+      const max = CbxReaderComponent.INFINITE_SCROLL_MAX_DOM_PAGES;
+
+      if (nextPages.length <= max) {
+        // Pure append below the viewport: nothing above the reader moves.
+        this.infiniteScrollPages.set(nextPages);
+        this.isLoadingMore.set(false);
+        return;
+      }
+
+      // The tail trim drops pages from the head, above the viewport. With
+      // overflow-anchor disabled on this container the browser won't compensate,
+      // so we do it: anchor on the page at the top of the viewport (among those
+      // that survive the trim) and shift scrollTop by however far it moved in
+      // content coordinates. Anchoring on a page further down (e.g. the last loaded
+      // one) is wrong: any height change between the viewport and that page — a
+      // lazy image finishing loading — would be "compensated" and make the reader
+      // jump.
+      const container = this.getImageScrollContainer();
+      const anchor = container ? this.findInfiniteScrollAnchor(container, nextPages[nextPages.length - max]) : null;
+      const beforeTop = container && anchor ? this.contentTopOf(container, anchor) : null;
+      const scrollTopBefore = container?.scrollTop ?? 0;
+
+      this.infiniteScrollPages.set(nextPages);
       this.trimInfiniteScrollPages('tail');
-      this.isLoadingMore.set(false);
+
+      if (!container || !anchor || beforeTop === null) {
+        this.isLoadingMore.set(false);
+        return;
+      }
+
+      // Runs once Angular has removed the trimmed pages from the DOM, before the
+      // browser paints them shifted, so the correction is never visible.
+      afterNextRender({
+        mixedReadWrite: () => {
+          if (windowVersion !== this.infiniteScrollWindowVersion) {
+            return;
+          }
+          if (layoutGen === this.readerLayoutGeneration()
+            && this.scrollMode() === scrollModeAtStart
+            && anchor.isConnected) {
+            // Absolute, not +=: the new tail images have no height until they load,
+            // so the trim can make the content shorter than scrollTop and the browser
+            // clamps it before we get here.
+            container.scrollTop = scrollTopBefore + this.contentTopOf(container, anchor) - beforeTop;
+          }
+          this.isLoadingMore.set(false);
+        }
+      }, { injector: this.injector });
     });
+  }
+
+  /**
+   * First page image at or below the top edge of the viewport, restricted to
+   * pages >= firstSurvivingPage so it is still in the DOM after a head trim.
+   */
+  private findInfiniteScrollAnchor(container: HTMLElement, firstSurvivingPage: number): HTMLImageElement | null {
+    const viewportTop = container.getBoundingClientRect().top;
+    const images = container.querySelectorAll<HTMLImageElement>('.infinite-scroll-wrapper img.page-image[data-page]');
+    for (const img of images) {
+      if (Number(img.dataset['page']) < firstSurvivingPage) continue;
+      if (img.getBoundingClientRect().bottom > viewportTop) return img;
+    }
+    return null;
+  }
+
+  /**
+   * Position of an element relative to the start of the scrolled content, i.e.
+   * independent of the current scrollTop (including a browser clamp of it).
+   */
+  private contentTopOf(container: HTMLElement, el: HTMLElement): number {
+    return el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
   }
 
   /**
@@ -1257,9 +1345,9 @@ export class CbxReaderComponent implements OnInit, OnDestroy {
     const first = this.infiniteScrollPages()[0];
     if (first === undefined || first <= 0) return;
 
-    const anchorEl = container.querySelector(
+    const anchorEl = container.querySelector<HTMLElement>(
       `.infinite-scroll-wrapper img.page-image[data-page="${first}"]`
-    ) as HTMLElement | null;
+    );
     if (!anchorEl) return;
 
     const beforeTop = anchorEl.getBoundingClientRect().top;
@@ -1298,8 +1386,8 @@ export class CbxReaderComponent implements OnInit, OnDestroy {
 
   private updateCurrentPageFromScroll(container: HTMLElement): void {
     const images = Array.from(
-      container.querySelectorAll('.infinite-scroll-wrapper img.page-image[data-page]')
-    ) as HTMLElement[];
+      container.querySelectorAll<HTMLElement>('.infinite-scroll-wrapper img.page-image[data-page]')
+    );
     if (!images.length) return;
 
     const containerRect = container.getBoundingClientRect();
@@ -1439,7 +1527,7 @@ export class CbxReaderComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const img = container.querySelector(`img[data-page="${this.currentPage()}"]`) as HTMLImageElement | null;
+    const img = container.querySelector<HTMLImageElement>(`img[data-page="${this.currentPage()}"]`);
     if (!img) {
       if (attempt < 30) {
         requestAnimationFrame(() => this.longStripWaitForImagesAndScroll(attempt + 1, layoutGen));
@@ -1600,7 +1688,7 @@ export class CbxReaderComponent implements OnInit, OnDestroy {
   private longStripOnScrollEnd(container: HTMLElement): void {
     if (this.longStripIsScrolling()) return;
 
-    const images = Array.from(container.querySelectorAll('.long-strip-wrapper img[data-page]')) as HTMLImageElement[];
+    const images = Array.from(container.querySelectorAll<HTMLImageElement>('.long-strip-wrapper img[data-page]'));
     const closest = this.longStripFindClosestImage(images, container);
 
     if (closest) {
@@ -1726,9 +1814,9 @@ export class CbxReaderComponent implements OnInit, OnDestroy {
       const container = this.getImageScrollContainer();
       if (!container) return;
 
-      const targetImage = container.querySelector(
+      const targetImage = container.querySelector<HTMLElement>(
         `.infinite-scroll-wrapper img.page-image[data-page="${pageIndex}"]`
-      ) as HTMLElement | null;
+      );
 
       if (targetImage) {
         targetImage.scrollIntoView({ behavior, block: 'start' });
@@ -1749,7 +1837,11 @@ export class CbxReaderComponent implements OnInit, OnDestroy {
     for (let i = startIndex; i < endIndex; i++) {
       pages.push(i);
     }
+    // Replacing the window wholesale invalidates any in-flight loadMorePages() append
+    // (e.g. jumping to a page via goToPage while auto-loading near the scroll edge).
+    this.infiniteScrollWindowVersion++;
     this.infiniteScrollPages.set(pages);
+    this.isLoadingMore.set(false);
   }
 
   onImageClick(): void {
